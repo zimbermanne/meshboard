@@ -135,12 +135,12 @@ router.get('/broadcasts', (req, res) => {
  * GET /api/credits/:nodeId
  * Get credit balance for a node
  */
-router.get('/credits/:nodeId', async (req, res) => {
+router.get('/credits/:nodeId', (req, res) => {
   const { nodeId } = req.params;
 
   try {
-    const result = await pool.query(
-      'SELECT node_id, credits FROM nodes WHERE node_id = $1',
+    const result = pool.query(
+      'SELECT node_id, credits FROM nodes WHERE node_id = ?',
       [nodeId]
     );
 
@@ -162,7 +162,7 @@ router.get('/credits/:nodeId', async (req, res) => {
  * POST /api/token/generate
  * Operator generates a credit token for a user
  */
-router.post('/token/generate', async (req, res) => {
+router.post('/token/generate', (req, res) => {
   const { node_id, amount, operator } = req.body;
 
   if (!node_id || !amount || !operator) {
@@ -171,8 +171,8 @@ router.post('/token/generate', async (req, res) => {
 
   try {
     // Verify node exists
-    const nodeResult = await pool.query(
-      'SELECT * FROM nodes WHERE node_id = $1',
+    const nodeResult = pool.query(
+      'SELECT * FROM nodes WHERE node_id = ?',
       [node_id]
     );
 
@@ -184,18 +184,17 @@ router.post('/token/generate', async (req, res) => {
     const tokenId = `TXN-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${node_id.substring(5, 9)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
 
-    const result = await pool.query(
+    const result = pool.query(
       `INSERT INTO tokens (token_id, node_id, credit_amount, expires_at, created_by, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [tokenId, node_id, amount, expiresAt, operator, 'pending']
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [tokenId, node_id, amount, expiresAt.toISOString(), operator, 'pending']
     );
 
     // Log payment
     const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    await pool.query(
+    pool.query(
       `INSERT INTO payments (payment_id, node_id, amount, method, operator, token_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [paymentId, node_id, amount, 'cash', operator, tokenId]
     );
 
