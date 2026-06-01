@@ -8,7 +8,7 @@ const router = express.Router();
  * POST /api/admin/login
  * Admin login with username and password
  */
-router.post('/login', async (req, res) => {
+router.post('/login', (req, res) => {
   const { username, password } = req.body;
   const jwtSecret = process.env.JWT_SECRET || 'dev-secret-key';
 
@@ -18,8 +18,8 @@ router.post('/login', async (req, res) => {
 
   try {
     // Check if user exists in database
-    const result = await pool.query(
-      'SELECT * FROM admin_users WHERE username = $1',
+    const result = pool.query(
+      'SELECT * FROM admin_users WHERE username = ?',
       [username]
     );
 
@@ -37,7 +37,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-    const passwordMatch = await comparePassword(password, user.password_hash);
+    const passwordMatch = require('bcryptjs').compareSync(password, user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });

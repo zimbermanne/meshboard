@@ -11,25 +11,25 @@ router.use(verifyToken);
  * GET /api/admin/dashboard
  * Get overview stats
  */
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', (req, res) => {
   try {
-    const nodesResult = await pool.query('SELECT COUNT(*) FROM nodes');
-    const broadcastsResult = await pool.query('SELECT COUNT(*) FROM broadcasts WHERE is_active = TRUE');
-    const pendingResult = await pool.query('SELECT COUNT(*) FROM post_requests WHERE status = $1', ['pending']);
-    const revenueResult = await pool.query(
+    const nodesResult = pool.query('SELECT COUNT(*) as count FROM nodes');
+    const broadcastsResult = pool.query('SELECT COUNT(*) as count FROM broadcasts WHERE is_active = 1');
+    const pendingResult = pool.query('SELECT COUNT(*) as count FROM post_requests WHERE status = ?', ['pending']);
+    const revenueResult = pool.query(
       'SELECT COALESCE(SUM(amount), 0) as total FROM payments'
     );
 
-    const lastSyncResult = await pool.query(
+    const lastSyncResult = pool.query(
       'SELECT MAX(created_at) as last_sync FROM post_requests'
     );
 
     res.json({
       stats: {
-        total_nodes: parseInt(nodesResult.rows[0].count),
-        active_broadcasts: parseInt(broadcastsResult.rows[0].count),
-        pending_approvals: parseInt(pendingResult.rows[0].count),
-        monthly_revenue: parseFloat(revenueResult.rows[0].total),
+        total_nodes: nodesResult.rows[0].count,
+        active_broadcasts: broadcastsResult.rows[0].count,
+        pending_approvals: pendingResult.rows[0].count,
+        monthly_revenue: revenueResult.rows[0].total,
         last_sync: lastSyncResult.rows[0].last_sync
       }
     });
@@ -43,10 +43,10 @@ router.get('/dashboard', async (req, res) => {
  * GET /api/admin/pending-posts
  * Get approval queue (pending post requests)
  */
-router.get('/pending-posts', async (req, res) => {
+router.get('/pending-posts', (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM post_requests WHERE status = $1 
+    const result = pool.query(
+      `SELECT * FROM post_requests WHERE status = ? 
        ORDER BY created_at DESC`,
       ['pending']
     );
@@ -65,7 +65,7 @@ router.get('/pending-posts', async (req, res) => {
  * GET /api/admin/nodes
  * Get all registered nodes (searchable)
  */
-router.get('/nodes', async (req, res) => {
+router.get('/nodes', (req, res) => {
   const { search } = req.query;
 
   try {
@@ -74,12 +74,12 @@ router.get('/nodes', async (req, res) => {
 
     if (search) {
       query = `SELECT * FROM nodes 
-               WHERE node_id ILIKE $1 OR display_name ILIKE $1
+               WHERE node_id LIKE ? OR display_name LIKE ?
                ORDER BY created_at DESC`;
-      params = [`%${search}%`];
+      params = [`%${search}%`, `%${search}%`];
     }
 
-    const result = await pool.query(query, params);
+    const result = pool.query(query, params);
 
     res.json({
       nodes: result.rows,
@@ -95,13 +95,13 @@ router.get('/nodes', async (req, res) => {
  * GET /api/admin/node/:nodeId
  * Get detailed node information
  */
-router.get('/node/:nodeId', async (req, res) => {
+router.get('/node/:nodeId', (req, res) => {
   const { nodeId } = req.params;
 
   try {
     // Get node info
-    const nodeResult = await pool.query(
-      'SELECT * FROM nodes WHERE node_id = $1',
+    const nodeResult = pool.query(
+      'SELECT * FROM nodes WHERE node_id = ?',
       [nodeId]
     );
 
@@ -110,20 +110,20 @@ router.get('/node/:nodeId', async (req, res) => {
     }
 
     // Get token history
-    const tokensResult = await pool.query(
-      'SELECT * FROM tokens WHERE node_id = $1 ORDER BY created_at DESC',
+    const tokensResult = pool.query(
+      'SELECT * FROM tokens WHERE node_id = ? ORDER BY created_at DESC',
       [nodeId]
     );
 
     // Get payment history
-    const paymentsResult = await pool.query(
-      'SELECT * FROM payments WHERE node_id = $1 ORDER BY created_at DESC',
+    const paymentsResult = pool.query(
+      'SELECT * FROM payments WHERE node_id = ? ORDER BY created_at DESC',
       [nodeId]
     );
 
     // Get post history
-    const postsResult = await pool.query(
-      'SELECT * FROM post_requests WHERE node_id = $1 ORDER BY created_at DESC LIMIT 20',
+    const postsResult = pool.query(
+      'SELECT * FROM post_requests WHERE node_id = ? ORDER BY created_at DESC LIMIT 20',
       [nodeId]
     );
 
@@ -143,7 +143,7 @@ router.get('/node/:nodeId', async (req, res) => {
  * GET /api/admin/tokens
  * Get all tokens with filter options
  */
-router.get('/tokens', async (req, res) => {
+router.get('/tokens', (req, res) => {
   const { status, node_id } = req.query;
 
   try {
@@ -151,17 +151,17 @@ router.get('/tokens', async (req, res) => {
     let params = [];
 
     if (status && node_id) {
-      query = 'SELECT * FROM tokens WHERE status = $1 AND node_id = $2 ORDER BY created_at DESC';
+      query = 'SELECT * FROM tokens WHERE status = ? AND node_id = ? ORDER BY created_at DESC';
       params = [status, node_id];
     } else if (status) {
-      query = 'SELECT * FROM tokens WHERE status = $1 ORDER BY created_at DESC';
+      query = 'SELECT * FROM tokens WHERE status = ? ORDER BY created_at DESC';
       params = [status];
     } else if (node_id) {
-      query = 'SELECT * FROM tokens WHERE node_id = $1 ORDER BY created_at DESC';
+      query = 'SELECT * FROM tokens WHERE node_id = ? ORDER BY created_at DESC';
       params = [node_id];
     }
 
-    const result = await pool.query(query, params);
+    const result = pool.query(query, params);
 
     res.json({
       tokens: result.rows,
@@ -177,7 +177,7 @@ router.get('/tokens', async (req, res) => {
  * GET /api/admin/payments
  * Get payment log with optional filters
  */
-router.get('/payments', async (req, res) => {
+router.get('/payments', (req, res) => {
   const { method, startDate, endDate } = req.query;
 
   try {
@@ -185,39 +185,35 @@ router.get('/payments', async (req, res) => {
                  LEFT JOIN nodes n ON p.node_id = n.node_id
                  WHERE 1=1`;
     let params = [];
-    let paramCount = 1;
 
     if (method) {
-      query += ` AND p.method = $${paramCount}`;
+      query += ` AND p.method = ?`;
       params.push(method);
-      paramCount++;
     }
 
     if (startDate) {
-      query += ` AND p.created_at >= $${paramCount}::timestamp`;
+      query += ` AND p.created_at >= ?`;
       params.push(startDate);
-      paramCount++;
     }
 
     if (endDate) {
-      query += ` AND p.created_at <= $${paramCount}::timestamp`;
+      query += ` AND p.created_at <= ?`;
       params.push(endDate);
-      paramCount++;
     }
 
     query += ' ORDER BY p.created_at DESC';
 
-    const result = await pool.query(query, params);
+    const result = pool.query(query, params);
 
     // Calculate totals
-    const totalResult = await pool.query(
+    const totalResult = pool.query(
       'SELECT COALESCE(SUM(amount), 0) as total FROM payments'
     );
 
     res.json({
       payments: result.rows,
       count: result.rows.length,
-      total_revenue: parseFloat(totalResult.rows[0].total)
+      total_revenue: totalResult.rows[0].total
     });
   } catch (error) {
     console.error('Payments fetch error:', error);
@@ -229,13 +225,11 @@ router.get('/payments', async (req, res) => {
  * GET /api/admin/broadcasts
  * Get all active broadcasts with countdown info
  */
-router.get('/broadcasts', async (req, res) => {
+router.get('/broadcasts', (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT b.*, 
-              (broadcast_timestamp + (duration_seconds || ' seconds')::interval) as expires_at
-       FROM broadcasts b
-       WHERE is_active = TRUE
+    const result = pool.query(
+      `SELECT * FROM broadcasts
+       WHERE is_active = 1
        ORDER BY broadcast_timestamp DESC`
     );
 
@@ -253,12 +247,12 @@ router.get('/broadcasts', async (req, res) => {
  * POST /api/admin/broadcast/expire/:messageId
  * Manually expire a broadcast
  */
-router.post('/broadcast/expire/:messageId', async (req, res) => {
+router.post('/broadcast/expire/:messageId', (req, res) => {
   const { messageId } = req.params;
 
   try {
-    const result = await pool.query(
-      'UPDATE broadcasts SET is_active = FALSE WHERE message_id = $1 RETURNING *',
+    const result = pool.query(
+      'UPDATE broadcasts SET is_active = 0 WHERE message_id = ? RETURNING *',
       [messageId]
     );
 

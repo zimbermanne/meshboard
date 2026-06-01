@@ -49,7 +49,7 @@ router.post('/register', (req, res) => {
  * POST /api/post-request
  * Submit a broadcast request for approval
  */
-router.post('/post-request', async (req, res) => {
+router.post('/post-request', (req, res) => {
   const { node_id, display_name, message, link, phone, duration_days, is_free } = req.body;
 
   if (!node_id || !message || !duration_days) {
@@ -58,8 +58,8 @@ router.post('/post-request', async (req, res) => {
 
   try {
     // Verify node exists
-    const nodeResult = await pool.query(
-      'SELECT * FROM nodes WHERE node_id = $1',
+    const nodeResult = pool.query(
+      'SELECT * FROM nodes WHERE node_id = ?',
       [node_id]
     );
 
@@ -82,8 +82,8 @@ router.post('/post-request', async (req, res) => {
     } else {
       // Check if free post available this month
       const currentMonth = new Date().toISOString().substring(0, 7);
-      const freePostResult = await pool.query(
-        'SELECT * FROM free_posts WHERE node_id = $1 AND month_year = $2 AND used = TRUE',
+      const freePostResult = pool.query(
+        'SELECT * FROM free_posts WHERE node_id = ? AND month_year = ? AND used = 1',
         [node_id, currentMonth]
       );
       if (freePostResult.rows.length > 0) {
@@ -93,11 +93,10 @@ router.post('/post-request', async (req, res) => {
 
     // Create post request
     const postId = `POST-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const result = await pool.query(
+    const result = pool.query(
       `INSERT INTO post_requests 
        (post_id, node_id, display_name, message, link, phone, duration_days, cost, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [postId, node_id, display_name, message, link || null, phone || null, duration_days, cost, 'pending']
     );
 
@@ -115,10 +114,10 @@ router.post('/post-request', async (req, res) => {
  * GET /api/broadcasts
  * Fetch all active approved broadcasts
  */
-router.get('/broadcasts', async (req, res) => {
+router.get('/broadcasts', (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM broadcasts WHERE is_active = TRUE 
+    const result = pool.query(
+      `SELECT * FROM broadcasts WHERE is_active = 1 
        ORDER BY broadcast_timestamp DESC`
     );
 
