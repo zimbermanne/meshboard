@@ -213,7 +213,7 @@ router.post('/token/generate', (req, res) => {
  * POST /api/token/redeem
  * User redeems a token to add credits
  */
-router.post('/token/redeem', async (req, res) => {
+router.post('/token/redeem', (req, res) => {
   const { token_id, node_id } = req.body;
 
   if (!token_id || !node_id) {
@@ -222,8 +222,8 @@ router.post('/token/redeem', async (req, res) => {
 
   try {
     // Verify token
-    const tokenResult = await pool.query(
-      'SELECT * FROM tokens WHERE token_id = $1',
+    const tokenResult = pool.query(
+      'SELECT * FROM tokens WHERE token_id = ?',
       [token_id]
     );
 
@@ -247,8 +247,8 @@ router.post('/token/redeem', async (req, res) => {
     }
 
     // Get current balance
-    const nodeResult = await pool.query(
-      'SELECT credits FROM nodes WHERE node_id = $1',
+    const nodeResult = pool.query(
+      'SELECT credits FROM nodes WHERE node_id = ?',
       [node_id]
     );
 
@@ -256,20 +256,20 @@ router.post('/token/redeem', async (req, res) => {
     const balanceAfter = parseFloat(balanceBefore) + parseFloat(token.credit_amount);
 
     // Update credits
-    await pool.query(
-      'UPDATE nodes SET credits = $1 WHERE node_id = $2',
+    pool.query(
+      'UPDATE nodes SET credits = ? WHERE node_id = ?',
       [balanceAfter, node_id]
     );
 
     // Log credit addition
-    await pool.query(
-      'INSERT INTO credits (node_id, amount, balance_before, balance_after) VALUES ($1, $2, $3, $4)',
+    pool.query(
+      'INSERT INTO credits (node_id, amount, balance_before, balance_after) VALUES (?, ?, ?, ?)',
       [node_id, token.credit_amount, balanceBefore, balanceAfter]
     );
 
     // Mark token as redeemed
-    await pool.query(
-      'UPDATE tokens SET status = $1, redeemed_at = CURRENT_TIMESTAMP WHERE token_id = $2',
+    pool.query(
+      'UPDATE tokens SET status = ?, redeemed_at = CURRENT_TIMESTAMP WHERE token_id = ?',
       ['redeemed', token_id]
     );
 
