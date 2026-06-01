@@ -8,7 +8,7 @@ const router = express.Router();
  * POST /api/approve/:postId
  * Operator approves a post request
  */
-router.post('/approve/:postId', async (req, res) => {
+router.post('/approve/:postId', (req, res) => {
   const { postId } = req.params;
   const { operatorId } = req.body;
 
@@ -18,8 +18,8 @@ router.post('/approve/:postId', async (req, res) => {
 
   try {
     // Get post request
-    const postResult = await pool.query(
-      'SELECT * FROM post_requests WHERE post_id = $1',
+    const postResult = pool.query(
+      'SELECT * FROM post_requests WHERE post_id = ?',
       [postId]
     );
 
@@ -34,8 +34,8 @@ router.post('/approve/:postId', async (req, res) => {
     }
 
     // Get node info
-    const nodeResult = await pool.query(
-      'SELECT credits FROM nodes WHERE node_id = $1',
+    const nodeResult = pool.query(
+      'SELECT credits FROM nodes WHERE node_id = ?',
       [post.node_id]
     );
 
@@ -49,23 +49,22 @@ router.post('/approve/:postId', async (req, res) => {
 
       // Deduct credits
       const newBalance = node.credits - post.cost;
-      await pool.query(
-        'UPDATE nodes SET credits = $1, total_spent = total_spent + $2 WHERE node_id = $3',
+      pool.query(
+        'UPDATE nodes SET credits = ?, total_spent = total_spent + ? WHERE node_id = ?',
         [newBalance, post.cost, post.node_id]
       );
 
       // Log credit deduction
-      await pool.query(
-        'INSERT INTO credits (node_id, amount, balance_before, balance_after) VALUES ($1, $2, $3, $4)',
+      pool.query(
+        'INSERT INTO credits (node_id, amount, balance_before, balance_after) VALUES (?, ?, ?, ?)',
         [post.node_id, -post.cost, node.credits, newBalance]
       );
     } else {
       // Mark free post as used
       const currentMonth = getCurrentMonth();
-      await pool.query(
-        `INSERT INTO free_posts (node_id, month_year, used)
-         VALUES ($1, $2, TRUE)
-         ON CONFLICT (node_id, month_year) DO UPDATE SET used = TRUE`,
+      pool.query(
+        `INSERT OR REPLACE INTO free_posts (node_id, month_year, used)
+         VALUES (?, ?, 1)`,
         [post.node_id, currentMonth]
       );
     }
@@ -73,18 +72,18 @@ router.post('/approve/:postId', async (req, res) => {
     // Create broadcast message
     const messageId = generateMessageId();
     const durationSeconds = daysToSeconds(post.duration_days);
-    const broadcastTimestamp = new Date();
+    const broadcastTimestamp = new Date().toISOString();
 
-    await pool.query(
+    pool.query(
       `INSERT INTO broadcasts 
        (message_id, node_id, display_name, message, link, phone, duration_seconds, broadcast_timestamp, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [messageId, post.node_id, post.display_name, post.message, post.link, post.phone, durationSeconds, broadcastTimestamp]
     );
 
     // Update post request status
-    await pool.query(
-      'UPDATE post_requests SET status = $1, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = $2 WHERE post_id = $3',
+    pool.query(
+      'UPDATE post_requests SET status = ?, reviewed_at = datetime("now"), reviewed_by = ? WHERE post_id = ?',
       ['approved', operatorId, postId]
     );
 
@@ -110,7 +109,7 @@ router.post('/approve/:postId', async (req, res) => {
  * POST /api/reject/:postId
  * Operator rejects a post request
  */
-router.post('/reject/:postId', async (req, res) => {
+router.post('/reject/:postId', (req, res) => {
   const { postId } = req.params;
   const { operatorId, reason } = req.body;
 
@@ -120,8 +119,8 @@ router.post('/reject/:postId', async (req, res) => {
 
   try {
     // Get post request
-    const postResult = await pool.query(
-      'SELECT * FROM post_requests WHERE post_id = $1',
+    const postResult = pool.query(
+      'SELECT * FROM post_requests WHERE post_id = ?',
       [postId]
     );
 
@@ -136,8 +135,8 @@ router.post('/reject/:postId', async (req, res) => {
     }
 
     // Update post request status
-    await pool.query(
-      'UPDATE post_requests SET status = $1, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = $2, rejection_reason = $3 WHERE post_id = $4',
+    pool.query(
+      'UPDATE post_requests SET status = ?, reviewed_at = datetime("now"), reviewed_by = ?, rejection_reason = ? WHERE post_id = ?',
       ['rejected', operatorId, reason || null, postId]
     );
 

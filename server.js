@@ -45,10 +45,10 @@ app.use((req, res) => {
 });
 
 // Initialize database and start server
-async function start() {
+function start() {
   try {
     console.log('🔄 Initializing database...');
-    await initDatabase();
+    initDatabase();
     
     app.listen(PORT, () => {
       console.log(`✅ MeshBoard super-node running on http://localhost:${PORT}`);

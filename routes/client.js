@@ -4,11 +4,7 @@ import { generateNodeId, generateMessageId, daysToSeconds, getPrice } from '../u
 
 const router = express.Router();
 
-/**
- * POST /api/register
- * Register a new node (client requests)
- */
-router.post('/register', async (req, res) => {
+router.post('/register', (req, res) => {
   const { node_id, display_name } = req.body;
 
   if (!node_id || !display_name) {
@@ -17,8 +13,8 @@ router.post('/register', async (req, res) => {
 
   try {
     // Check if node already exists
-    const existingNode = await pool.query(
-      'SELECT * FROM nodes WHERE node_id = $1',
+    const existingNode = pool.query(
+      'SELECT * FROM nodes WHERE node_id = ?',
       [node_id]
     );
 
@@ -31,14 +27,17 @@ router.post('/register', async (req, res) => {
     }
 
     // Register new node
-    const result = await pool.query(
-      'INSERT INTO nodes (node_id, display_name, credits) VALUES ($1, $2, $3) RETURNING *',
+    const result = pool.query(
+      'INSERT INTO nodes (node_id, display_name, credits) VALUES (?, ?, ?)',
       [node_id, display_name, 0]
     );
 
+    // Fetch the inserted node
+    const node = pool.query('SELECT * FROM nodes WHERE node_id = ?', [node_id]);
+
     res.status(201).json({
       message: 'Node registered successfully',
-      node: result.rows[0]
+      node: node.rows[0]
     });
   } catch (error) {
     console.error('Register error:', error);
