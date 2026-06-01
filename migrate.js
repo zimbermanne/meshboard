@@ -1,0 +1,142 @@
+require("dotenv").config();
+const pool = require("./pool");
+
+async function migrate() {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // ── Nodes ──────────────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS nodes (
+        id            TEXT PRIMARY KEY,           -- NODE-XXXX-XXXX
+        display_name  TEXT NOT NULL,
+        registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        credit_balance NUMERIC(10,2) NOT NULL DEFAULT 0,
+        total_spent    NUMERIC(10,2) NOT NULL DEFAULT 0,
+        last_seen_at   TIMESTAMPTZ,
+        is_active      BOOLEAN NOT NULL DEFAULT TRUE
+      );
+    `);
+
+    // ── Credits ledger (immutable audit trail) ─────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS credit_transactions (
+        id          SERIAL PRIMARY KEY,
+        node_id     TEXT NOT NULL REFERENCES nodes(id),
+        amount      NUMERIC(10,2) NOT NULL,           -- positive = credit, negative = debit
+        type        TEXT NOT NULL,                    -- 'token_redemption' | 'post_charge' | 'adjustment'
+        reference   TEXT,                             -- token ID or post ID
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // ── Tokens ─────────────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tokens (
+        id            TEXT PRIMARY KEY,              -- TXN-XXXX-XXXX-XXXX
+        node_id       TEXT NOT NULL REFERENCES nodes(id),
+        amount        NUMERIC(10,2) NOT NULL,
+        status        TEXT NOT NULL DEFAULT 'pending', -- pending | redeemed | expired
+        created_by    TEXT NOT NULL,                  -- operator id / name
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at    TIMESTAMPTZ NOT NULL,
+        redeemed_at   TIMESTAMPTZ
+      );
+    `);
+
+    // ── Payments ───────────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id          TEXT PRIMARY KEY,
+        node_id     TEXT NOT NULL REFERENCES nodes(id),
+        amount      NUMERIC(10,2) NOT NULL,
+        method      TEXT NOT NULL,                   -- 'cash' | 'mpesa'
+        operator    TEXT NOT NULL,
+        token_id    TEXT REFERENCES tokens(id),
+        notes       TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // ── Posts (broadcast requests) ─────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id              TEXT PRIMARY KEY,            -- MSG-XXXX
+        node_id         TEXT NOT NULL REFERENCES nodes(id),
+        message_text    TEXT NOT NULL,
+        link            TEXT,
+        phone           TEXT,
+        package_days    INTEGER NOT NULL,
+        credit_cost     NUMERIC(10,2) NOT NULL,
+        is_free_post    BOOLEAN NOT NULL DEFAULT FALSE,
+        status          TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+        rejection_reason TEXT,
+        submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        approved_at     TIMESTAMPTZ,
+        expires_at      TIMESTAMPTZ,                 -- set on approval
+        approved_by     TEXT                         -- operator
+      );
+    `);
+
+    // ── Free post tracking ─────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS free_post_usage (
+        node_id    TEXT NOT NULL REFERENCES nodes(id),
+        year_month TEXT NOT NULL,                    -- 'YYYY-MM'
+        post_id    TEXT REFERENCES posts(id),
+        used_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (node_id, year_month)
+      );
+    `);
+
+    // ── Sync sessions (mesh network log) ──────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sync_sessions (
+        id            SERIAL PRIMARY KEY,
+        peer_node_id  TEXT NOT NULL,
+        direction     TEXT NOT NULL,                 -- 'inbound' | 'outbound' | 'bidirectional'
+        transport     TEXT NOT NULL,                 -- 'internet' | 'wifi' | 'wifi_direct' | 'bluetooth'
+        items_sent    INTEGER NOT NULL DEFAULT 0,
+        items_received INTEGER NOT NULL DEFAULT 0,
+        started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed_at  TIMESTAMPTZ,
+        status        TEXT NOT NULL DEFAULT 'started' -- started | completed | failed
+      );
+    `);
+
+    // ── Outbound sync queue (items waiting to be pushed to nodes) ─────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id          SERIAL PRIMARY KEY,
+        target_node TEXT,                            -- NULL = broadcast to all
+        type        TEXT NOT NULL,                   -- 'post_approved' | 'credit_update' | 'token_validated' | 'expiry_cleanup' | 'registration_ack'
+        payload     JSONB NOT NULL,
+        priority    INTEGER NOT NULL DEFAULT 3,      -- 1=highest (money), 4=lowest
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        delivered_at TIMESTAMPTZ
+      );
+    `);
+
+    // ── Indexes ────────────────────────────────────────────────────────────
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_status     ON posts(status);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_node       ON posts(node_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tokens_node      ON tokens(node_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_tokens_status    ON tokens(status);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_payments_node    ON payments(node_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sync_queue_target ON sync_queue(target_node, delivered_at);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_credit_tx_node   ON credit_transactions(node_id);`);
+
+    await client.query("COMMIT");
+    console.log("✓ Migration complete — all tables created.");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("✗ Migration failed:", err.message);
+    process.exit(1);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+migrate();
