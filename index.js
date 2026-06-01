@@ -42,11 +42,24 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n MeshBoard Super-Node`);
-  console.log(` Node: ${process.env.SUPERNODE_ID || "SUPERNODE-DEV"}`);
-  console.log(` Listening on http://localhost:${PORT}\n`);
-  scheduler.start();
-});
+(async () => {
+  // Optional: run migrations on startup if enabled
+  if (process.env.RUN_MIGRATIONS === "true") {
+    try {
+      console.log("[startup] Running migrations...");
+      const migrate = require("./migrate");
+      await migrate();
+      console.log("[startup] Migrations complete");
+    } catch (err) {
+      console.error("[startup] Migration error:", err.message);
+      // Don't exit — continue anyway to allow inspection
+    }
+  }
 
-module.exports = app;
+  app.listen(PORT, () => {
+    console.log(`\n MeshBoard Super-Node`);
+    console.log(` Node: ${process.env.SUPERNODE_ID || "SUPERNODE-DEV"}`);
+    console.log(` Listening on http://localhost:${PORT}\n`);
+    scheduler.start();
+  });
+})();
