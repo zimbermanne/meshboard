@@ -87,10 +87,10 @@ The frontend is separate. Create a new Railway service:
 
 **Environment Variables for Frontend:**
 
-| Variable | Value |
-|----------|-------|
+| Variable            | Value                                          |
+|---------------------|------------------------------------------------|
 | `VITE_API_BASE_URL` | `https://meshboard-backend.up.railway.app/api` |
-| `VITE_SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` |
+| `VITE_SUPERNODE_ID` | `SUPERNODE-ARUSHA-01`                          |
 
 (Replace `meshboard-backend.up.railway.app` with your actual backend service URL from Railway Dashboard)
 
