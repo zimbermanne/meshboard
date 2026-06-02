@@ -1,10 +1,7 @@
 {
   "name": "meshboard-backend",
   "version": "1.0.0",
-  "main": "index.js"
-},
-  "dependencies": {}
-}
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "migrate": "node migrate.js",
