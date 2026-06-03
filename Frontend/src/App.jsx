@@ -87,7 +87,7 @@ export default function App() {
             ))}
           </nav>
           <div className="sidebar-footer">
-            {process.env.VITE_SUPERNODE_ID || "SUPERNODE-ARUSHA-01"}
+            {import.meta.env.VITE_SUPERNODE_ID || "SUPERNODE-ARUSHA-01"}
           </div>
         </aside>
 
