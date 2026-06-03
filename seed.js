@@ -1,5 +1,5 @@
 require("dotenv").config();
-const pool = require("./pool");
+const pool = require("./db/pool");
 
 function nodeId() {
   const seg = () => Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4).padEnd(4,"X");
