@@ -7,7 +7,7 @@ router.get("/", async (req, res) => {
     const [counts, revenue] = await Promise.all([
       pool.query(`
         SELECT
-          (SELECT COUNT(*)::int FROM nodes WHERE is_active IS NOT FALSE) AS total_nodes,
+          (SELECT COUNT(*)::int FROM nodes) AS total_nodes,
           (SELECT COUNT(*)::int FROM posts WHERE status = 'pending') AS pending_approval,
           (SELECT COUNT(*)::int FROM posts WHERE status = 'approved' AND expires_at > NOW()) AS active_broadcasts,
           (SELECT COUNT(*)::int FROM posts WHERE status = 'approved') AS approved_posts,

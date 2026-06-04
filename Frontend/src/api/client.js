@@ -1,13 +1,26 @@
 // Frontend/src/api/client.js
 //
-// IMPORTANT: In Railway production, set the environment variable:
+// Production (Railway): set at BUILD time:
 //   VITE_API_BASE_URL = https://your-backend.up.railway.app/api
+//   (must end with /api — NOT /api/nodes or other resource paths)
 //
-// In local dev, the Vite proxy (vite.config.js) forwards /api → localhost:4000
+// Local dev: leave unset; Vite proxies /api → http://localhost:4000
 
-const BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const NODE_ID_RE = /^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
-// Log the base URL once on load so it shows in browser console
+function normalizeApiBase(raw) {
+  let base = (raw || "/api").trim().replace(/\/+$/, "");
+  // Common mistake: .../api/nodes — strips trailing resource segment
+  base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
+  if (!base.endsWith("/api")) {
+    if (base === "" || base === "/") return "/api";
+    return `${base}/api`;
+  }
+  return base;
+}
+
+const BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
+
 console.log("[api] base URL:", BASE);
 
 async function req(method, path, body) {
@@ -20,33 +33,39 @@ async function req(method, path, body) {
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (networkErr) {
-    // This is the "Failed to fetch" error — usually:
-    //  1. Backend is down
-    //  2. VITE_API_BASE_URL is wrong / missing in Railway env vars
-    //  3. CORS preflight blocked
     throw new Error(
       `Network error — cannot reach ${url}. ` +
-      `Check that VITE_API_BASE_URL is set correctly and the backend is running. ` +
+      `Set VITE_API_BASE_URL to your backend URL ending in /api (e.g. https://host.up.railway.app/api). ` +
       `(${networkErr.message})`
     );
   }
 
+  const text = await res.text();
   let data;
   try {
-    data = await res.json();
+    data = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(`Bad response from ${url} — status ${res.status}, body not JSON`);
+    const preview = text.slice(0, 80).replace(/\s+/g, " ");
+    throw new Error(
+      `Bad response from ${url} (HTTP ${res.status}). Expected JSON, got: ${preview || "(empty)"}. ` +
+      `If deployed, rebuild the frontend with VITE_API_BASE_URL pointing at the backend /api.`
+    );
   }
 
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const hint =
+      data.hint ||
+      (/\/api\/nodes\/(stats|posts|tokens|payments|sync)/.test(url)
+        ? " VITE_API_BASE_URL should end with /api, not /api/nodes."
+        : "");
+    throw new Error((data.error || `HTTP ${res.status}`) + hint);
+  }
   return data;
 }
 
 export const api = {
-  // Stats
   stats:          ()           => req("GET",   "/stats"),
 
-  // Nodes
   nodes:          (search)     => req("GET",   `/nodes${search ? `?search=${encodeURIComponent(search)}` : ""}`),
   node:           (id)         => req("GET",   `/nodes/${id}`),
   registerNode:   (body)       => req("POST",  "/nodes/register", body),
@@ -54,7 +73,6 @@ export const api = {
   deactivateNode: (id, reason) => req("POST",  `/nodes/${id}/deactivate`, { reason }),
   reactivateNode: (id)         => req("POST",  `/nodes/${id}/reactivate`),
 
-  // Posts
   posts:          (status)     => req("GET",   `/posts${status ? `?status=${status}` : ""}`),
   activePosts:    ()           => req("GET",   "/posts/active"),
   submitPost:     (body)       => req("POST",  "/posts", body),
@@ -63,16 +81,15 @@ export const api = {
   expirePost:     (id)         => req("POST",  `/posts/${id}/expire`),
   deletePost:     (id, reason) => req("POST",  `/posts/${id}/delete`, { reason }),
 
-  // Tokens
   tokens:         (params)     => req("GET",   `/tokens${params ? "?" + new URLSearchParams(params) : ""}`),
   generateToken:  (body)       => req("POST",  "/tokens/generate", body),
   redeemToken:    (body)       => req("POST",  "/tokens/redeem", body),
 
-  // Payments
   payments:       (params)     => req("GET",   `/payments${params ? "?" + new URLSearchParams(params) : ""}`),
   paymentStats:   ()           => req("GET",   "/payments/stats"),
 
-  // Sync
   syncStatus:     ()           => req("GET",   "/sync/status"),
   sync:           (body)       => req("POST",  "/sync", body),
 };
+
+export { NODE_ID_RE, normalizeApiBase };

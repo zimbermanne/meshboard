@@ -8,37 +8,37 @@ const validate = (req, res, next) => {
   next();
 };
 
-// GET /api/posts — list posts, filterable by status
-router.get("/", async (req, res) => {
+// GET /api/posts/active — must be registered before "/" (Express route order)
+router.get("/active", async (req, res) => {
   try {
-    const { status } = req.query;
-    let sql = `
-      SELECT p.*, n.display_name AS sender_name
+    const { rows } = await pool.query(`
+      SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name,
+             EXTRACT(EPOCH FROM (p.expires_at - NOW())) AS seconds_remaining,
+             EXTRACT(EPOCH FROM (p.expires_at - p.approved_at)) AS total_seconds
       FROM posts p
-      JOIN nodes n ON n.id = p.node_id
-    `;
-    const params = [];
-    if (status) { sql += " WHERE p.status = $1"; params.push(status); }
-    sql += " ORDER BY p.submitted_at DESC";
-    const { rows } = await pool.query(sql, params);
+      LEFT JOIN nodes n ON n.id = p.node_id
+      WHERE p.status = 'approved' AND p.expires_at > NOW()
+      ORDER BY p.expires_at ASC
+    `);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/posts/active — live broadcasts with time remaining
-router.get("/active", async (req, res) => {
+// GET /api/posts — list posts, filterable by status
+router.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT p.*, n.display_name AS sender_name,
-             EXTRACT(EPOCH FROM (p.expires_at - NOW())) AS seconds_remaining,
-             EXTRACT(EPOCH FROM (p.expires_at - p.approved_at)) AS total_seconds
+    const { status } = req.query;
+    let sql = `
+      SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name
       FROM posts p
-      JOIN nodes n ON n.id = p.node_id
-      WHERE p.status = 'approved' AND p.expires_at > NOW()
-      ORDER BY p.expires_at ASC
-    `);
+      LEFT JOIN nodes n ON n.id = p.node_id
+    `;
+    const params = [];
+    if (status) { sql += " WHERE p.status = $1"; params.push(status); }
+    sql += " ORDER BY p.submitted_at DESC";
+    const { rows } = await pool.query(sql, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -125,7 +125,9 @@ router.post("/:id/approve", async (req, res) => {
       const nodeRes = await client.query("SELECT credit_balance FROM nodes WHERE id=$1 FOR UPDATE", [post.node_id]);
       if (!nodeRes.rows.length) {
         await client.query("ROLLBACK");
-        return res.status(404).json({ error: "Node not found" });
+        return res.status(404).json({
+          error: `Node ${post.node_id} is not registered. Register the node before approving.`,
+        });
       }
       
       const currentBalance = nodeRes.rows[0].credit_balance;
