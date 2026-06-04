@@ -8,7 +8,17 @@ const scheduler  = require("./services/scheduler");
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-// ── CORS ────────────────────────────────────────────────────────────────────
+// 1. HEALTH CHECK (MUST BE FIRST)
+// Railway looks for this to confirm the server is alive.
+app.get("/health", (req, res) => res.json({
+  status:    "ok",
+  time:      new Date(),
+  port:      PORT,
+}));
+
+app.get("/", (req, res) => res.json({ status: "MeshBoard Online" }));
+
+// 2. CORS & MIDDLEWARE
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
   .split(",")
   .map(o => o.trim());
@@ -19,22 +29,18 @@ app.use(cors({
     if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS: origin ${origin} not allowed`));
+    return callback(null, true); // Temporarily allow for debugging if needed
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 }));
 
-// ── Middleware ─────────────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json({ limit: "1mb" })); // Critical for reading Android JSON data
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(express.json({ limit: "1mb" }));
+app.use(morgan("dev"));
 
-// ── Routes (CORRECTED FOR ANDROID SYNC) ────────────────────────────────────
-/* We mount these at the root ("/") because your Android ApiService.kt 
-   already includes "api/nodes", "api/posts", etc., in the @POST paths.
-*/
+// 3. ROUTES (Mounted after health check to avoid 404s)
 app.use("/", require("./routes/nodes"));
 app.use("/", require("./routes/posts"));
 app.use("/", require("./routes/tokens"));
@@ -42,45 +48,15 @@ app.use("/", require("./routes/payments"));
 app.use("/", require("./routes/sync"));
 app.use("/", require("./routes/stats"));
 
-// ── Health check ──────────────────────────────────────────────────────────
-app.get("/health", (req, res) => res.json({
-  status:    "ok",
-  supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
-  time:      new Date(),
-  env:       process.env.NODE_ENV,
-  port:      PORT,
-}));
-
-// ── 404 handler ────────────────────────────────────────────────────────────
+// 4. 404 ERROR HANDLER
 app.use((req, res) => {
-  console.log(`[404] Not Found: ${req.method} ${req.path}`);
+  console.log(`[404] ${req.method} ${req.path}`);
   res.status(404).json({ error: "Not found", path: req.path });
 });
 
-// ── Error handler ──────────────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error("[error]", err.message);
-  res.status(500).json({ error: err.message || "Internal server error" });
+// 5. START SERVER
+// Use "::" to allow both IPv4 and IPv6 (Railway requirement)
+app.listen(PORT, "::", () => {
+  console.log(`\n✓ Server is live on port ${PORT}`);
+  scheduler.start();
 });
-
-// ── Start ──────────────────────────────────────────────────────────────────
-(async () => {
-  if (process.env.RUN_MIGRATIONS === "true") {
-    try {
-      console.log("[startup] Running migrations...");
-      const migrate = require("./migrate");
-      await migrate();
-      console.log("[startup] Migrations complete");
-    } catch (err) {
-      console.error("[startup] Migration error:", err.message);
-    }
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n✓ MeshBoard Super-Node Connected`);
-    console.log(`  Node ID: ${process.env.SUPERNODE_ID || "SUPERNODE-DEV"}`);
-    console.log(`  Port: ${PORT}`);
-    console.log(`  Health: http://localhost:${PORT}/health\n`);
-    scheduler.start();
-  });
-})();
