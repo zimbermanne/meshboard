@@ -23,11 +23,12 @@ app.use(morgan("dev"));
 
 // 4. ROUTES 
 // We use the exact paths your Android app's ApiService.kt is calling
-app.use("/", require("./routes/nodes"));
-app.use("/", require("./routes/posts"));
-app.use("/", require("./routes/tokens"));
-app.use("/", require("./routes/sync"));
-app.use("/", require("./routes/stats"));
+app.use("/api/nodes",    require("./routes/nodes"));
+app.use("/api/posts",    require("./routes/posts"));
+app.use("/api/tokens",   require("./routes/tokens"));
+app.use("/api/sync",     require("./routes/sync"));
+app.use("/api/stats",    require("./routes/stats"));
+app.use("/api/payments", require("./routes/payments"));
 
 // 5. 404 HANDLER
 app.use((req, res) => {
