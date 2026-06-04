@@ -143,6 +143,13 @@ The background scheduler is built into the backend service. Logs will show:
 
 ## Troubleshooting
 
+### "`buildCommand` and `startCommand` cannot be the same"
+
+- **Backend** `startCommand` must be `node index.js` (not `npm start`).
+- **Frontend** `buildCommand` = `npm run build`, `startCommand` = `node serve.js`.
+- In Railway Dashboard → service → **Settings**, clear any custom **Build Command** / **Start Command** that both say `npm start` (UI overrides repo config).
+- Remove duplicate `[start]` from `nixpacks.toml` — only `railway.toml` should define how the server starts.
+
 ### "Activity heartbeat timeout" / deploy keeps failing
 
 1. **Root directory** — Each service must use its own folder:

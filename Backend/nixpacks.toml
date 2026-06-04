@@ -1,3 +1,4 @@
+# Install only — do not set [start] here (use railway.toml startCommand)
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
@@ -5,7 +6,4 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = []
-
-[start]
-cmd = "npm start"
+cmds = ["echo Backend: no compile step"]
