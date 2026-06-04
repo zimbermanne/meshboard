@@ -2,7 +2,10 @@ const router = require("express").Router();
 const pool   = require("../db/pool");
 
 // GET /api/stats — dashboard overview numbers
-router.get("/", async (req, res) => {
+router.get("/", async (req, res) => { ...});
+
+// To this:
+router.get("/api/stats", async (req, res) => { ... });
   try {
     const [nodes, posts, revenue, queue, broadcasts, recentSyncs] = await Promise.all([
       pool.query("SELECT COUNT(*) FROM nodes"),
