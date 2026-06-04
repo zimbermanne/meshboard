@@ -5,29 +5,39 @@ const app = express();
 
 const PORT = process.env.PORT || 8080;
 
-// 1. HEALTH CHECKS
-app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
-app.get("/", (req, res) => res.status(200).send("MeshBoard API Live"));
+// 1. TOP-LEVEL HEALTH CHECK (CRITICAL)
+// We put this first so Railway gets a success response immediately.
+app.get("/health", (req, res) => res.status(200).send("OK"));
+app.get("/", (req, res) => res.status(200).send("MeshBoard Live"));
 
 // 2. MIDDLEWARE
-app.use(cors({ origin: "*" }));
+app.use(cors());
 app.use(express.json());
 
-// 3. THE "DASHBOARD PATH" FIX
-const nodesRouter = require("./routes/nodes");
-const statsRouter = require("./routes/stats");
+// 3. SAFE ROUTE LOADING
+// We wrap these in a try-catch so one bad file doesn't kill the whole server.
+const loadRoute = (path, fileName) => {
+    try {
+        app.use(path, require(`./routes/${fileName}`));
+        console.log(`✅ Loaded: ${path}`);
+    } catch (err) {
+        console.error(`❌ Failed to load ${fileName}:`, err.message);
+    }
+};
 
-// This handles the Android app: @POST("api/nodes/register")
-app.use("/api/nodes", nodesRouter);
+// Map the routes exactly how the dashboard and Android app need them
+loadRoute("/api/nodes", "nodes");
+loadRoute("/api/stats", "stats");
+loadRoute("/api/nodes/stats", "stats"); // Fixed for dashboard 404
+loadRoute("/api/posts", "posts");
+loadRoute("/api/sync", "sync");
 
-// This handles the Dashboard error: /api/nodes/stats
-// We tell the server: "If someone asks for /api/nodes/stats, send them to the statsRouter"
-app.use("/api/nodes/stats", statsRouter); 
+// 4. GLOBAL ERROR HANDLER
+app.use((err, req, res, next) => {
+    res.status(500).json({ error: "Server Error", message: err.message });
+});
 
-// Also keep the standard stats path just in case
-app.use("/api/stats", statsRouter);
-
-// 4. START SERVER
+// 5. BIND TO 0.0.0.0
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ Server Aligned! Listening on ${PORT}`);
+    console.log(`\n🚀 SERVER STABILIZED ON PORT ${PORT}`);
 });
