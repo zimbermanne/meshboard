@@ -63,6 +63,9 @@ router.post(
       // Check node exists
       const nodeRes = await client.query("SELECT * FROM nodes WHERE id=$1", [node_id]);
       if (!nodeRes.rows.length) return res.status(404).json({ error: "Node not registered" });
+      if (nodeRes.rows[0].is_active === false) {
+        return res.status(403).json({ error: "Node is deactivated" });
+      }
       const node = nodeRes.rows[0];
 
       const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -197,6 +200,29 @@ router.post("/:id/reject", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/posts/:id/delete — remove pending post (operator)
+router.post(
+  "/:id/delete",
+  body("reason").optional().trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const postRes = await pool.query("SELECT * FROM posts WHERE id=$1", [req.params.id]);
+      if (!postRes.rows.length) return res.status(404).json({ error: "Post not found" });
+      if (postRes.rows[0].status !== "pending") {
+        return res.status(409).json({ error: "Only pending posts can be deleted" });
+      }
+      const { rows } = await pool.query(
+        "DELETE FROM posts WHERE id=$1 RETURNING *",
+        [req.params.id]
+      );
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // POST /api/posts/:id/expire — manual operator expiry
 router.post("/:id/expire", async (req, res) => {

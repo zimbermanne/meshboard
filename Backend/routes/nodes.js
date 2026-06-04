@@ -9,7 +9,7 @@ const validate = (req, res, next) => {
 };
 
 // GET /api/nodes — list all nodes (searchable)
-router.post("/api/nodes/register", async (req, res) => { ... });
+router.get("/", async (req, res) => {
   try {
     const { search } = req.query;
     let sql = `
@@ -71,7 +71,7 @@ router.post(
       const result = await pool.query(
         `INSERT INTO nodes(id, display_name, last_seen_at)
          VALUES($1, $2, NOW())
-         ON CONFLICT(id) DO UPDATE SET last_seen_at = NOW()
+         ON CONFLICT(id) DO UPDATE SET last_seen_at = NOW(), display_name = EXCLUDED.display_name
          RETURNING *`,
         [id, display_name]
       );
@@ -109,5 +109,48 @@ router.patch(
     }
   }
 );
+
+// POST /api/nodes/:id/deactivate — operator blocks node from posting
+router.post(
+  "/:id/deactivate",
+  body("reason").optional().trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `UPDATE nodes SET is_active = FALSE WHERE id = $1 RETURNING *`,
+        [req.params.id]
+      );
+      if (!rows.length) return res.status(404).json({ error: "Node not found" });
+      await pool.query(
+        `INSERT INTO sync_queue(target_node, type, payload, priority)
+         VALUES($1, 'node_deactivated', $2, 2)`,
+        [req.params.id, JSON.stringify({ node_id: req.params.id, reason: req.body.reason || null })]
+      );
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST /api/nodes/:id/reactivate
+router.post("/:id/reactivate", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE nodes SET is_active = TRUE WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Node not found" });
+    await pool.query(
+      `INSERT INTO sync_queue(target_node, type, payload, priority)
+       VALUES($1, 'node_reactivated', $2, 2)`,
+      [req.params.id, JSON.stringify({ node_id: req.params.id })]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

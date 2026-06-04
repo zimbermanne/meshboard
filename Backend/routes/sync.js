@@ -144,7 +144,7 @@ async function processInboundItem(client, fromNode, item) {
       await client.query(
         `INSERT INTO nodes(id, display_name, last_seen_at)
          VALUES($1,$2,NOW())
-         ON CONFLICT(id) DO UPDATE SET last_seen_at = NOW()`,
+         ON CONFLICT(id) DO UPDATE SET last_seen_at = NOW(), display_name = EXCLUDED.display_name`,
         [id, display_name]
       );
       // Queue ack for the registering node
@@ -162,6 +162,7 @@ async function processInboundItem(client, fromNode, item) {
       const nodeRes = await client.query("SELECT * FROM nodes WHERE id=$1", [node_id]);
       if (!nodeRes.rows.length) throw new Error("Unknown node");
       const node = nodeRes.rows[0];
+      if (node.is_active === false) throw new Error("Node is deactivated");
 
       const yearMonth = new Date().toISOString().slice(0, 7);
       const freeRes   = await client.query(
