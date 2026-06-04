@@ -1,45 +1,76 @@
-const router = require("express").Router();
-const pool   = require("../db/pool");
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
 
-// GET /api/stats — dashboard overview numbers
-router.get("/", async (req, res) => {
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+// ── Safe Route Loader ─────────────────────────────────────────────────────
+function safeRequire(path) {
   try {
-    const [nodes, posts, revenue, queue, broadcasts, recentSyncs] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM nodes"),
-      pool.query(`
-        SELECT
-          COUNT(*) FILTER (WHERE status='pending')  AS pending,
-          COUNT(*) FILTER (WHERE status='approved') AS approved,
-          COUNT(*) FILTER (WHERE status='rejected') AS rejected
-        FROM posts
-      `),
-      pool.query(`
-        SELECT
-          COALESCE(SUM(amount) FILTER (WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())), 0) AS this_month,
-          COALESCE(SUM(amount) FILTER (WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')), 0) AS last_month,
-          COALESCE(SUM(amount), 0) AS all_time
-        FROM payments
-      `),
-      pool.query("SELECT COUNT(*) FROM posts WHERE status='pending'"),
-      pool.query("SELECT COUNT(*) FROM posts WHERE status='approved' AND expires_at > NOW()"),
-      pool.query(`
-        SELECT peer_node_id, transport, completed_at
-        FROM sync_sessions WHERE status='completed'
-        ORDER BY completed_at DESC LIMIT 5
-      `),
-    ]);
-
-    res.json({
-      total_nodes:        parseInt(nodes.rows[0].count),
-      pending_approval:   parseInt(queue.rows[0].count),
-      active_broadcasts:  parseInt(broadcasts.rows[0].count),
-      posts:              posts.rows[0],
-      revenue:            revenue.rows[0],
-      recent_syncs:       recentSyncs.rows,
-    });
+    return require(path);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.warn(`[WARN] Could not load ${path}: ${err.message}`);
+    return { router: express.Router() }; // fallback empty router
   }
+}
+
+// ── Middleware ────────────────────────────────────────────────────────────
+app.use(cors({
+  origin: true, // Allow all for now (tighten later)
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
+app.use(helmet());
+app.use(express.json({ limit: "1mb" }));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+
+// ── Routes with Safe Loading ──────────────────────────────────────────────
+app.use("/", safeRequire("./routes/nodes").router || safeRequire("./routes/nodes"));
+app.use("/", safeRequire("./routes/posts").router || safeRequire("./routes/posts"));
+app.use("/", safeRequire("./routes/tokens").router || safeRequire("./routes/tokens"));
+app.use("/", safeRequire("./routes/payments").router || safeRequire("./routes/payments"));
+app.use("/", safeRequire("./routes/sync").router || safeRequire("./routes/sync"));
+app.use("/", safeRequire("./routes/stats").router || safeRequire("./routes/stats"));
+
+// ── Health Check ──────────────────────────────────────────────────────────
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
+    time: new Date().toISOString(),
+    env: process.env.NODE_ENV || "development",
+    port: PORT,
+    uptime: process.uptime()
+  });
 });
 
-module.exports = router;
+// ── 404 & Error Handler ───────────────────────────────────────────────────
+app.use((req, res) => res.status(404).json({ error: "Not found" }));
+
+app.use((err, req, res, next) => {
+  console.error("[ERROR]", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// ── Start Server ──────────────────────────────────────────────────────────
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\n✅ MeshBoard Super-Node Started`);
+  console.log(`   Port: ${PORT}`);
+  console.log(`   Health: http://localhost:${PORT}/health`);
+  console.log(`   Environment: ${process.env.NODE_ENV || "development"}\n`);
+});
+
+// Optional Scheduler (if exists)
+try {
+  const scheduler = require("./services/scheduler");
+  if (scheduler && typeof scheduler.start === "function") {
+    scheduler.start();
+    console.log("✓ Scheduler started");
+  }
+} catch (e) {
+  console.warn("Scheduler not loaded (optional)");
+}

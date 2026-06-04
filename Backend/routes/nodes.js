@@ -9,7 +9,7 @@ const validate = (req, res, next) => {
 };
 
 // GET /api/nodes — list all nodes (searchable)
-router.get("/", async (req, res) => {
+router.post("/api/nodes/register", async (req, res) => { ... });
   try {
     const { search } = req.query;
     let sql = `
