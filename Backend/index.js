@@ -1,50 +1,77 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const app = express();
+const helmet = require("helmet");
+const morgan = require("morgan");
+const scheduler = require("./services/scheduler");
 
-// 1. DYNAMIC PORT
-// Railway provides the PORT variable; 8080 is a safe fallback.
+const app = express();
 const PORT = process.env.PORT || 8080;
 
+// 1. HEALTH CHECK (Immediate response for Railway)
+app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
+app.get("/", (req, res) => res.status(200).send("MeshBoard Super-Node API is Live"));
+
 // 2. MIDDLEWARE
-app.use(cors());
+// Allow the dashboard to talk to the API
+app.use(cors({
+    origin: "*", 
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true
+}));
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(express.json({ limit: "1mb" }));
+app.use(morgan("dev"));
 
-// 3. THE "STAY ALIVE" ROUTES
-// These must be at the top so Railway healthchecks don't 404.
-app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
-app.get("/", (req, res) => res.status(200).json({ message: "MeshBoard Backend Live" }));
+// 3. ROUTE LOGIC
+// We import the route files once
+const nodeRoutes = require("./routes/nodes");
+const postRoutes = require("./routes/posts");
+const statsRoutes = require("./routes/stats");
+const syncRoutes = require("./routes/sync");
+const tokenRoutes = require("./routes/tokens");
 
-// 4. THE PROTECTED ROUTES
-// Before requiring, we verify these files exist in your 'routes' folder.
-try {
-    app.use("/api/nodes",    require("./routes/nodes"));
-    app.use("/api/posts",    require("./routes/posts"));
-    app.use("/api/tokens",   require("./routes/tokens"));
-    app.use("/api/sync",     require("./routes/sync"));
-    app.use("/api/stats",    require("./routes/stats"));
-    app.use("/api/payments", require("./routes/payments"));
-} catch (err) {
-    console.error("❌ ROUTE LOADING ERROR:", err.message);
-    // This prevents the server from completely crashing if one file is missing
-}
+// --- ANDROID COMPATIBILITY (Prefix: /api/...) ---
+app.use("/api/nodes", nodeRoutes);
+app.use("/api/posts", postRoutes);
+app.use("/api/stats", statsRoutes);
+app.use("/api/sync", syncRoutes);
+app.use("/api/tokens", tokenRoutes);
 
-// 5. 404 HANDLER
+// --- DASHBOARD COMPATIBILITY (Direct access) ---
+app.use("/nodes", nodeRoutes);
+app.use("/posts", postRoutes);
+app.use("/stats", statsRoutes);
+app.use("/sync", syncRoutes);
+app.use("/tokens", tokenRoutes);
+
+// 4. 404 CATCH-ALL
+// If the dashboard says "Route not found", this log will show exactly what it was looking for.
 app.use((req, res) => {
-    console.log(`[404] ${req.method} ${req.path}`);
-    res.status(404).json({ error: "Route not found", path: req.path });
+    console.warn(`[404] Missing Route: ${req.method} ${req.path}`);
+    res.status(404).json({ 
+        error: "Route not found", 
+        message: `The path ${req.path} does not exist on this server.`,
+        hint: "Check if you are missing a prefix like /api/"
+    });
 });
 
-// 6. GLOBAL ERROR HANDLER
+// 5. GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
-    console.error("Internal Server Error:", err);
-    res.status(500).json({ error: "Server error occurred" });
+    console.error("Critical Server Error:", err);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
 });
 
-// 7. START
+// 6. START SERVER
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n✓ MESHBOARD ONLINE`);
-    console.log(`  Port: ${PORT}`);
-    console.log(`  Health Check: /health`);
+    console.log(`\n✅ MESHBOARD BACKEND STARTED`);
+    console.log(`🚀 Port: ${PORT}`);
+    console.log(`📡 Health: http://localhost:${PORT}/health\n`);
+    
+    // Start background jobs
+    try {
+        scheduler.start();
+    } catch (e) {
+        console.error("Scheduler failed to start:", e.message);
+    }
 });
