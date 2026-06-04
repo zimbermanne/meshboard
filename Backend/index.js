@@ -41,6 +41,12 @@ app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
 
 // 3. ROUTES (Mounted after health check to avoid 404s)
+// ── Routes (The "Catch-All" Fix) ──────────────────────────────────────────
+/* We keep the mount points at "/" but we must ensure the 
+   router files themselves don't have the "api/nodes" prefix 
+   OR we mount them like this:
+*/
+
 app.use("/", require("./routes/nodes"));
 app.use("/", require("./routes/posts"));
 app.use("/", require("./routes/tokens"));
