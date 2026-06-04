@@ -1,14 +1,39 @@
 const router = require("express").Router();
-const pool   = require("../db/pool");
-const { body, param, query, validationResult } = require("express-validator");
+const pool = require("../db/pool");
+const { body, validationResult } = require("express-validator");
 
+// Helper to handle validation errors
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   next();
 };
 
-// GET /api/nodes — list all nodes (searchable)
+/**
+ * GET /stats
+ * Added to fix the "Body not JSON" error in the dashboard
+ */
+router.get("/stats", async (req, res) => {
+  try {
+    const statsQuery = `
+      SELECT 
+        (SELECT COUNT(*) FROM nodes) as total_nodes,
+        (SELECT COUNT(*) FROM posts WHERE status = 'approved') as active_posts,
+        (SELECT COUNT(*) FROM payments) as total_payments,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments) as total_revenue
+    `;
+    const { rows } = await pool.query(statsQuery);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Stats Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+/**
+ * GET /
+ * List all nodes with basic stats
+ */
 router.get("/", async (req, res) => {
   try {
     const { search } = req.query;
@@ -32,7 +57,23 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/nodes/:id — single node with full history
+/**
+ * GET /payments
+ * Added to fix the dashboard payments error
+ */
+router.get("/payments", async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT * FROM payments ORDER BY created_at DESC LIMIT 100");
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /:id
+ * Single node full history
+ */
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -58,7 +99,9 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/nodes/register — called by client app on first sync
+/**
+ * POST /register
+ */
 router.post(
   "/register",
   body("id").matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/).withMessage("Invalid NODE ID format"),
@@ -67,7 +110,6 @@ router.post(
   async (req, res) => {
     const { id, display_name } = req.body;
     try {
-      // Upsert — safe to call multiple times (relay nodes may replay registrations)
       const result = await pool.query(
         `INSERT INTO nodes(id, display_name, last_seen_at)
          VALUES($1, $2, NOW())
@@ -77,7 +119,6 @@ router.post(
       );
       const isNew = result.rows[0].registered_at > new Date(Date.now() - 5000);
 
-      // Queue registration acknowledgement for delivery back to node
       await pool.query(
         `INSERT INTO sync_queue(target_node, type, payload, priority)
          VALUES($1, 'registration_ack', $2, 2)`,
@@ -91,7 +132,9 @@ router.post(
   }
 );
 
-// PATCH /api/nodes/:id/display-name
+/**
+ * PATCH /:id/display-name
+ */
 router.patch(
   "/:id/display-name",
   body("display_name").trim().isLength({ min: 1, max: 80 }),
