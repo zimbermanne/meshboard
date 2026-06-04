@@ -51,7 +51,7 @@ railway deploy
 | `SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` (or your node name) |
 | `TOKEN_EXPIRY_HOURS` | `48` |
 | `ALLOWED_ORIGINS` | `https://meshboard-frontend.up.railway.app` (update after frontend deploy) |
-| `RUN_MIGRATIONS` | `false` (set to `true` on first deploy, then back to `false`) |
+| `RUN_MIGRATIONS` | `false` (run `node migrate.js` via shell once; avoid `true` in production — it delays startup) |
 | `DATABASE_URL` | `${{ DATABASE.URL }}` (reference variable from PostgreSQL service) |
 
 ### 3. Run Migrations (First Time Only)
@@ -142,6 +142,17 @@ The background scheduler is built into the backend service. Logs will show:
 ---
 
 ## Troubleshooting
+
+### "Activity heartbeat timeout" / deploy keeps failing
+
+1. **Root directory** — Each service must use its own folder:
+   - Backend service → **Root Directory:** `Backend`
+   - Frontend service → **Root Directory:** `Frontend`
+2. **Health checks** — Both services expose `GET /health` (frontend and backend). Do not point healthcheck at `/api/...`.
+3. **`RUN_MIGRATIONS`** — Keep `false` on Railway unless you are running a one-time migration. `true` used to block startup before the server listened.
+4. **Frontend build** — `vite` is a devDependency. The Frontend `nixpacks.toml` runs `npm install --include=dev` then `npm run build`. If build logs show `vite: not found`, redeploy after pulling latest config.
+5. **`DATABASE_URL`** — Backend must reference PostgreSQL: `${{ Postgres.DATABASE_URL }}` or `${{ DATABASE.URL }}` (exact name depends on your linked service).
+6. **Redeploy** both services after pushing these fixes.
 
 ### "DATABASE connection timeout"
 

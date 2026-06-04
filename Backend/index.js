@@ -5,9 +5,9 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || "4000", 10);
 
-// Health checks first (Railway probes before middleware)
+// ── Liveness (Railway healthcheck) — no DB, no middleware ─────────────────
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -39,7 +39,6 @@ app.use(helmet());
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-// REST API — dashboard (frontend) + direct mobile calls
 app.use("/api/nodes", require("./routes/nodes"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/tokens", require("./routes/tokens"));
@@ -56,15 +55,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-async function start() {
+// Listen immediately so Railway healthcheck passes before DB/migrations
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`SERVER_READY_ON_PORT_${PORT}`);
+  console.log(`Health: http://0.0.0.0:${PORT}/health`);
+  bootBackground();
+});
+
+server.on("error", (err) => {
+  console.error("[fatal] Server failed to start:", err.message);
+  process.exit(1);
+});
+
+function bootBackground() {
   if (process.env.RUN_MIGRATIONS === "true") {
-    try {
-      await require("./migrate")();
-      console.log("[startup] Migrations applied");
-    } catch (err) {
-      console.error("[startup] Migration failed:", err.message);
-      process.exit(1);
-    }
+    require("./migrate")()
+      .then(() => console.log("[startup] Migrations applied"))
+      .catch((err) => console.error("[startup] Migration failed (API may error until fixed):", err.message));
   }
 
   try {
@@ -74,11 +81,7 @@ async function start() {
     console.warn("[startup] Scheduler not started:", err.message);
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`SERVER_READY_ON_PORT_${PORT}`);
-    console.log(`Health: http://0.0.0.0:${PORT}/health`);
-    console.log(`Sync:   POST http://0.0.0.0:${PORT}/api/sync`);
-  });
+  if (!process.env.DATABASE_URL) {
+    console.warn("[startup] DATABASE_URL is not set — link PostgreSQL in Railway");
+  }
 }
-
-start();

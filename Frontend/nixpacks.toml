@@ -1,11 +1,12 @@
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
+# Vite is a devDependency — must install dev deps to run `npm run build`
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install --include=dev"]
 
 [phases.build]
 cmds = ["npm run build"]
 
 [start]
-cmd = "node serve.js"
+cmd = "npm start"
