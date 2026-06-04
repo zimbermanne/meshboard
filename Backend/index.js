@@ -9,20 +9,16 @@ const app  = express();
 const PORT = process.env.PORT || 4000;
 
 // ── CORS ────────────────────────────────────────────────────────────────────
-// Allow all origins in development; restrict in production
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
   .split(",")
   .map(o => o.trim());
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, health checks)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    console.warn(`[CORS] Blocked origin: ${origin}`);
-    console.warn(`[CORS] Allowed: ${allowedOrigins.join(", ")}`);
     return callback(new Error(`CORS: origin ${origin} not allowed`));
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -32,16 +28,19 @@ app.use(cors({
 
 // ── Middleware ─────────────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "1mb" })); // Critical for reading Android JSON data
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-// ── Routes ─────────────────────────────────────────────────────────────────
-app.use("/api/nodes",    require("./routes/nodes"));
-app.use("/api/posts",    require("./routes/posts"));
-app.use("/api/tokens",   require("./routes/tokens"));
-app.use("/api/payments", require("./routes/payments"));
-app.use("/api/sync",     require("./routes/sync"));
-app.use("/api/stats",    require("./routes/stats"));
+// ── Routes (CORRECTED FOR ANDROID SYNC) ────────────────────────────────────
+/* We mount these at the root ("/") because your Android ApiService.kt 
+   already includes "api/nodes", "api/posts", etc., in the @POST paths.
+*/
+app.use("/", require("./routes/nodes"));
+app.use("/", require("./routes/posts"));
+app.use("/", require("./routes/tokens"));
+app.use("/", require("./routes/payments"));
+app.use("/", require("./routes/sync"));
+app.use("/", require("./routes/stats"));
 
 // ── Health check ──────────────────────────────────────────────────────────
 app.get("/health", (req, res) => res.json({
@@ -50,11 +49,13 @@ app.get("/health", (req, res) => res.json({
   time:      new Date(),
   env:       process.env.NODE_ENV,
   port:      PORT,
-  origins:   allowedOrigins,
 }));
 
-// ── 404 ────────────────────────────────────────────────────────────────────
-app.use((req, res) => res.status(404).json({ error: "Not found", path: req.path }));
+// ── 404 handler ────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  console.log(`[404] Not Found: ${req.method} ${req.path}`);
+  res.status(404).json({ error: "Not found", path: req.path });
+});
 
 // ── Error handler ──────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -76,10 +77,9 @@ app.use((err, req, res, next) => {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n✓ MeshBoard Super-Node`);
-    console.log(`  Node: ${process.env.SUPERNODE_ID || "SUPERNODE-DEV"}`);
+    console.log(`\n✓ MeshBoard Super-Node Connected`);
+    console.log(`  Node ID: ${process.env.SUPERNODE_ID || "SUPERNODE-DEV"}`);
     console.log(`  Port: ${PORT}`);
-    console.log(`  Allowed origins: ${allowedOrigins.join(", ")}`);
     console.log(`  Health: http://localhost:${PORT}/health\n`);
     scheduler.start();
   });
