@@ -1,9 +1,0 @@
-# Build in nixpacks; start only in railway.toml (must differ from buildCommand)
-[phases.setup]
-nixPkgs = ["nodejs_20"]
-
-[phases.install]
-cmds = ["npm install --include=dev"]
-
-[phases.build]
-cmds = ["npm run build"]
