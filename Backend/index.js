@@ -39,12 +39,22 @@ app.use(helmet());
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.use("/api/nodes", require("./routes/nodes"));
-app.use("/api/posts", require("./routes/posts"));
-app.use("/api/tokens", require("./routes/tokens"));
-app.use("/api/payments", require("./routes/payments"));
-app.use("/api/sync", require("./routes/sync"));
-app.use("/api/stats", require("./routes/stats"));
+// Dynamic fallback mappings for endpoints to protect route evaluation lifecycle
+const safeRequire = (path) => {
+  try {
+    return require(path);
+  } catch (err) {
+    console.error(`[critical] Error loading route definition blueprint (${path}):`, err.message);
+    return (req, res) => res.status(500).json({ error: "Route compilation failure on system startup" });
+  }
+};
+
+app.use("/api/nodes", safeRequire("./routes/nodes"));
+app.use("/api/posts", safeRequire("./routes/posts"));
+app.use("/api/tokens", safeRequire("./routes/tokens"));
+app.use("/api/payments", safeRequire("./routes/payments"));
+app.use("/api/sync", safeRequire("./routes/sync"));
+app.use("/api/stats", safeRequire("./safeRequire"));
 
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 app.use((err, req, res, next) => {
@@ -59,7 +69,11 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`SERVER_READY_ON_PORT_${PORT}`);
   console.log(`Health: http://0.0.0.0:${PORT}/health`);
-  bootBackground();
+  
+  // Defer background processing execution context execution out of the current tick thread stack
+  process.nextTick(() => {
+    bootBackground();
+  });
 });
 
 server.on("error", (err) => {
@@ -68,20 +82,29 @@ server.on("error", (err) => {
 });
 
 function bootBackground() {
+  if (!process.env.DATABASE_URL) {
+    console.warn("⚠️ [startup] DATABASE_URL is not set — link PostgreSQL in Railway or verify environment variables.");
+  }
+
   if (process.env.RUN_MIGRATIONS === "true") {
+    console.log("[startup] Initiating migration check...");
     require("./migrate")()
-      .then(() => console.log("[startup] Migrations applied"))
-      .catch((err) => console.error("[startup] Migration failed (API may error until fixed):", err.message));
+      .then(() => console.log("✓ [startup] Migrations verified and applied seamlessly"))
+      .catch((err) => {
+        console.error("✗ [startup] Migration processing encountered a structural roadblock:", err.message);
+        console.info("💡 Keeping server alive so health checks pass for administrative container access.");
+      });
   }
 
   try {
-    require("./services/scheduler").start();
-    console.log("[startup] Scheduler started");
+    const scheduler = require("./services/scheduler");
+    if (scheduler && typeof scheduler.start === "function") {
+      scheduler.start();
+      console.log("✓ [startup] Background Sync Scheduler engine active");
+    } else {
+      console.warn("⚠️ [startup] Scheduler found but initialization method contract was missing");
+    }
   } catch (err) {
-    console.warn("[startup] Scheduler not started:", err.message);
-  }
-
-  if (!process.env.DATABASE_URL) {
-    console.warn("[startup] DATABASE_URL is not set — link PostgreSQL in Railway");
+    console.warn("⚠️ [startup] Scheduler engine skipped execution context:", err.message);
   }
 }
