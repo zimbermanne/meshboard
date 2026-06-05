@@ -20,6 +20,8 @@ Both services are in this repository but deploy independently.
 
 **Android (existing installs):** If the app still has the old URL in preferences, open **Mesh → Railway Server Sync** and paste `https://meshboard-super-node.up.railway.app`, or clear app data.
 
+See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYNC.md)** for credits (local 5.0 vs server 0), post approval → feed, and operator testing steps.
+
 ---
 
 ## Pre-Deployment Checklist
@@ -192,6 +194,17 @@ The background scheduler is built into the backend service. Logs will show:
 
 - Set `RUN_MIGRATIONS=true`, redeploy, then watch logs
 - If stuck, manually run: `railway shell → node migrate.js`
+
+### "App shows 5 credits but dashboard shows 0"
+
+- Expected before first sync: the Android app uses a **local 5.0** placeholder until `registration_ack` / `credit_update` from the server.
+- After sync, **server balance wins** (new nodes default to **0** in the database).
+- Re-sync from **Mesh → Railway Server Sync** if the UI did not update.
+
+### "Post not in Feed after submit"
+
+- Posts stay **`pending`** until an operator **Approves** them in the dashboard **Approval Queue**.
+- After approve, the phone must **sync** to receive the `post_approved` outbound item.
 
 ---
 
