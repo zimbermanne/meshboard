@@ -8,6 +8,18 @@ The MeshBoard Super-Node consists of two services that deploy separately to Rail
 
 Both services are in this repository but deploy independently.
 
+### Live production URLs
+
+| Client | Base URL | Notes |
+|--------|----------|--------|
+| **Backend API** | `https://meshboard-super-node.up.railway.app` | Health: `/health`, REST: `/api/...` |
+| **Web dashboard** | Set `VITE_API_BASE_URL` to `https://meshboard-super-node.up.railway.app/api` | Rebuild frontend after changing |
+| **Android app** | `https://meshboard-super-node.up.railway.app` | **No** `/api` suffix — Retrofit appends `api/posts`, `api/sync`, etc. |
+
+> The old placeholder `meshboard-backend.up.railway.app` is **not** deployed. Use `meshboard-super-node` only.
+
+**Android (existing installs):** If the app still has the old URL in preferences, open **Mesh → Railway Server Sync** and paste `https://meshboard-super-node.up.railway.app`, or clear app data.
+
 ---
 
 ## Pre-Deployment Checklist
@@ -42,7 +54,8 @@ railway deploy
 ```
 
 **In Railway Dashboard for Backend Service:**
-- Set Name: `meshboard-backend`
+- Set Name: `meshboard-super-node` (or match your Railway service name)
+- Root Directory: `Backend`
 - Under Variables, add these after linking PostgreSQL:
 
 | Variable | Value |
@@ -50,7 +63,7 @@ railway deploy
 | `NODE_ENV` | `production` |
 | `SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` (or your node name) |
 | `TOKEN_EXPIRY_HOURS` | `48` |
-| `ALLOWED_ORIGINS` | `https://meshboard-frontend.up.railway.app` (update after frontend deploy) |
+| `ALLOWED_ORIGINS` | Your dashboard URL, e.g. `https://your-frontend.up.railway.app` |
 | `RUN_MIGRATIONS` | `false` (run `node migrate.js` via shell once; avoid `true` in production — it delays startup) |
 | `DATABASE_URL` | `${{ DATABASE.URL }}` (reference variable from PostgreSQL service) |
 
@@ -78,37 +91,34 @@ node seed.js
 
 ### 5. Deploy Frontend Service
 
-The frontend is separate. Create a new Railway service:
+1. Add a new Railway service linked to this repo
+2. **Root Directory:** `Frontend`
+3. Build/start commands: use `Frontend/railway.toml` (build via nixpacks, start `node serve.js`)
 
-1. In Railway Dashboard, add a new service
-2. Build command: `npm run build`
-3. Start command: `npm run preview`
-4. Root directory: `.` (if frontend code is in root) or `./frontend` if in a subfolder
+**Environment Variables for Frontend (set before build):**
 
-**Environment Variables for Frontend:**
+| Variable            | Value |
+|---------------------|-------|
+| `VITE_API_BASE_URL` | `https://meshboard-super-node.up.railway.app/api` |
+| `VITE_SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` |
 
-| Variable            | Value                                          |
-|---------------------|------------------------------------------------|
-| `VITE_API_BASE_URL` | `https://meshboard-backend.up.railway.app/api` (must end with `/api`, **not** `/api/nodes`) |
-| `VITE_SUPERNODE_ID` | `SUPERNODE-ARUSHA-01`                          |
-
-(Replace `meshboard-backend.up.railway.app` with your actual backend service URL from Railway Dashboard)
+Redeploy/rebuild after changing `VITE_API_BASE_URL` — Vite bakes it into the bundle.
 
 ### 6. Update Backend CORS
 
-Now that frontend is deployed, update the backend's `ALLOWED_ORIGINS` to include the actual frontend URL:
+Set backend `ALLOWED_ORIGINS` to your deployed frontend origin (exact URL, including `https://`):
 
 ```
-ALLOWED_ORIGINS=https://meshboard-frontend.up.railway.app,https://your-custom-domain.com
+ALLOWED_ORIGINS=https://your-frontend.up.railway.app
 ```
 
 ---
 
 ## Accessing the Deployment
 
-- **Frontend:** `https://meshboard-frontend.up.railway.app`
-- **Backend:** `https://meshboard-backend.up.railway.app`
-- **Health Check:** `https://meshboard-backend.up.railway.app/health`
+- **Backend:** `https://meshboard-super-node.up.railway.app`
+- **Health:** `https://meshboard-super-node.up.railway.app/health`
+- **Frontend:** your frontend Railway URL (set `ALLOWED_ORIGINS` to match)
 
 ---
 
@@ -117,8 +127,8 @@ ALLOWED_ORIGINS=https://meshboard-frontend.up.railway.app,https://your-custom-do
 ### Logs
 
 ```bash
-railway logs -s meshboard-backend
-railway logs -s meshboard-frontend
+railway logs -s meshboard-super-node
+railway logs -s <your-frontend-service-name>
 ```
 
 ### Database

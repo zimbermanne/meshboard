@@ -1,8 +1,9 @@
 // Frontend/src/api/client.js
 //
 // Production (Railway): set at BUILD time:
-//   VITE_API_BASE_URL = https://your-backend.up.railway.app/api
+//   VITE_API_BASE_URL = https://meshboard-super-node.up.railway.app/api
 //   (must end with /api — NOT /api/nodes or other resource paths)
+// Android app uses the host only (no /api): https://meshboard-super-node.up.railway.app
 //
 // Local dev: leave unset; Vite proxies /api → http://localhost:4000
 
