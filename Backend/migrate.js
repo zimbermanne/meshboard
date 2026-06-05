@@ -2,6 +2,12 @@ require("dotenv").config();
 const pool = require("./db/pool");
 
 async function migrate() {
+  // Gracefully handle unattached database URLs during provisioning states
+  if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
+    console.warn("⚠️ [migration] Database environment variables missing. Skipping migration execution.");
+    return;
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -131,18 +137,20 @@ async function migrate() {
     console.log("✓ Migration complete — all tables created.");
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("✗ Migration failed:", err.message);
-    process.exit(1);
+    console.error("✗ Migration failed inside transaction:", err.message);
+    throw err; // Forward to let calling application handle log presentation
   } finally {
     client.release();
-    // ← pool.end() removed from here
   }
 }
 
 if (require.main === module) {
   migrate()
     .then(() => pool.end())
-    .catch(() => process.exit(1));
+    .catch((err) => {
+      console.error("[fatal] CLI Migration script crashed:", err.message);
+      process.exit(1);
+    });
 } else {
   module.exports = migrate;
 }
