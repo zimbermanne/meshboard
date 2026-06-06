@@ -57,7 +57,7 @@ const PAGES = { overview: Overview, queue: ApprovalQueue, broadcasts: LiveBroadc
 
 export default function App() {
   const [active, setActive] = useState("overview");
-  const { data: stats, reload: reloadStats } = useApi(() => api.stats());
+  const { data: stats, reload: reloadStats, error: statsError } = useApi(() => api.stats());
   const pendingCount = stats?.pending_approval || 0;
   const Page = PAGES[active];
   const now  = new Date().toLocaleString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short", year: "numeric" });
@@ -72,9 +72,14 @@ export default function App() {
             <div className="logo-sub">Super-Node</div>
           </div>
           <div className="sidebar-status">
-            <div className="status-dot" />
-            ONLINE
+            <div className="status-dot" style={statsError ? { background: "var(--red)", boxShadow: "0 0 6px var(--red)" } : undefined} />
+            {statsError ? "API OFFLINE" : "ONLINE"}
           </div>
+          {statsError && (
+            <div style={{ padding: "8px 20px", fontSize: 10, color: "var(--red)", fontFamily: "var(--mono)", borderBottom: "1px solid var(--border)", lineHeight: 1.4 }}>
+              {statsError}
+            </div>
+          )}
           <nav className="nav">
             {NAV_ITEMS.map(item => (
               <div key={item.id} className={`nav-item ${active === item.id ? "active" : ""}`} onClick={() => setActive(item.id)}>
