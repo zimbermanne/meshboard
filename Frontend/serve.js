@@ -27,7 +27,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let urlPath = req.url.split("?")[0];
+  let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath !== "/" && urlPath.endsWith("/")) urlPath = urlPath.slice(0, -1);
 
   // Fast liveness path for Railway healthcheck pipelines
@@ -43,8 +43,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let filePath = path.join(DIST, urlPath);
-  if (!filePath.startsWith(DIST)) {
+  // Strip leading slash — path.join(DIST, "/assets/foo.js") on Linux resolves to
+  // "/assets/foo.js" (drops DIST), misses the file, and SPA fallback returns HTML → MIME error.
+  const relPath  = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
+  const filePath = path.resolve(DIST, relPath);
+  const distRoot = path.resolve(DIST);
+  if (filePath !== distRoot && !filePath.startsWith(distRoot + path.sep)) {
     res.writeHead(403); res.end("Forbidden"); return;
   }
 
