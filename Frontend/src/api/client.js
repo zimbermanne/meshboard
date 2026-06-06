@@ -1,9 +1,7 @@
 // Frontend/src/api/client.js
 //
-// Production (Railway): set at BUILD time:
-//   VITE_API_BASE_URL = https://meshboard-super-node.up.railway.app/api
-//   (must end with /api — NOT /api/nodes or other resource paths)
-// Android app uses the host only (no /api): https://meshboard-super-node.up.railway.app
+// Production (Railway): leave VITE_API_BASE_URL unset — serve.js proxies /api → BACKEND_URL.
+// Set BACKEND_URL on the Frontend Railway service (runtime, no rebuild needed).
 //
 // Local dev: leave unset; Vite proxies /api → http://localhost:4000
 
@@ -49,7 +47,7 @@ async function req(method, path, body) {
     const preview = text.slice(0, 80).replace(/\s+/g, " ");
     throw new Error(
       `Bad response from ${url} (HTTP ${res.status}). Expected JSON, got: ${preview || "(empty)"}. ` +
-      `If deployed, rebuild the frontend with VITE_API_BASE_URL pointing at the backend /api.`
+      `If deployed, set BACKEND_URL on the Frontend Railway service (serve.js proxies /api).`
     );
   }
 

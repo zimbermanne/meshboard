@@ -54,7 +54,7 @@ app.use("/api/posts", safeRequire("./routes/posts"));
 app.use("/api/tokens", safeRequire("./routes/tokens"));
 app.use("/api/payments", safeRequire("./routes/payments"));
 app.use("/api/sync", safeRequire("./routes/sync"));
-app.use("/api/stats", safeRequire("./safeRequire"));
+app.use("/api/stats", safeRequire("./routes/stats"));
 
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 app.use((err, req, res, next) => {
