@@ -63,6 +63,7 @@ async function req(method, path, body) {
 }
 
 export const api = {
+  health:         ()           => req("GET",   "/health"),
   stats:          ()           => req("GET",   "/stats"),
 
   nodes:          (search)     => req("GET",   `/nodes${search ? `?search=${encodeURIComponent(search)}` : ""}`),

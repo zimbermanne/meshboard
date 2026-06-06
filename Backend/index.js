@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./loadEnv")();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -48,6 +48,27 @@ const safeRequire = (path) => {
     return (req, res) => res.status(500).json({ error: "Route compilation failure on system startup" });
   }
 };
+
+// GET /api/health — DB connectivity (dashboard diagnostics)
+app.get("/api/health", async (req, res) => {
+  try {
+    const pool = require("./db/pool");
+    await pool.query("SELECT 1");
+    res.json({
+      status: "ok",
+      database: "connected",
+      supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
+      time: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "degraded",
+      database: "disconnected",
+      error: err.message || "Database unreachable",
+      supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
+    });
+  }
+});
 
 app.use("/api/nodes", safeRequire("./routes/nodes"));
 app.use("/api/posts", safeRequire("./routes/posts"));

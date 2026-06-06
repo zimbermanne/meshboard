@@ -1,14 +1,13 @@
-import { sharedCss, Spinner, ErrorMsg, CountdownBar } from "../components/shared";
+import { sharedCss, Spinner, CountdownBar } from "../components/shared";
 import { useApi } from "../hooks/useApi";
 import { api }    from "../api/client";
 
 export default function Overview() {
-  const { data: stats,     loading: sl, error: se } = useApi(() => api.stats());
+  const { data: stats, loading: sl } = useApi(() => api.stats());
   const { data: active,    loading: al }             = useApi(() => api.activePosts());
   const { data: postsData, loading: pl }             = useApi(() => api.posts("pending"));
 
   if (sl) return <><style>{sharedCss}</style><Spinner /></>;
-  if (se) return <><style>{sharedCss}</style><ErrorMsg msg={se} /></>;
 
   const posts = postsData || [];
   const broadcasts = active || [];

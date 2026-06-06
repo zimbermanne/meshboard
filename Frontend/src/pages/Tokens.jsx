@@ -88,6 +88,9 @@ export default function Tokens() {
           <table>
             <thead><tr><th>Token ID</th><th>Node</th><th>Amount</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>
             <tbody>
+              {tokens.length === 0 && (
+                <tr><td colSpan={6} style={{color:"var(--muted)",fontFamily:"var(--mono)",fontSize:12}}>No tokens yet — generate one above</td></tr>
+              )}
               {tokens.map(t => (
                 <tr key={t.id}>
                   <td><span className="mono">{t.id}</span></td>
