@@ -24,7 +24,7 @@ function backendOrigin() {
   const raw =
     process.env.BACKEND_URL ||
     process.env.VITE_API_BASE_URL ||
-    "https://meshboard-super-node.up.railway.app";
+    "http://localhost:4000";
   return raw.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
