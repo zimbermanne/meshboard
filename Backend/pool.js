@@ -5,7 +5,9 @@ const pool = new Pool(
   process.env.DATABASE_URL
     ? {
         connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }, // required on Railway
+        ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1') 
+          ? false 
+          : { rejectUnauthorized: false }, // SSL only for remote connections
       }
     : {
         host:     process.env.DB_HOST     || "localhost",
