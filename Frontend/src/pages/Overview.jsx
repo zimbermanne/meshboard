@@ -33,8 +33,8 @@ export default function Overview() {
         </div>
         <div className="card">
           <div className="card-label">Revenue (This Month)</div>
-          <div className="card-value accent">${parseFloat(stats?.revenue?.this_month || 0).toFixed(2)}</div>
-          <div className="card-sub">All time: ${parseFloat(stats?.revenue?.all_time || 0).toFixed(2)}</div>
+          <div className="card-value accent">{parseFloat(stats?.revenue?.this_month || 0).toFixed(2)} BSH</div>
+          <div className="card-sub">All time: {parseFloat(stats?.revenue?.all_time || 0).toFixed(2)} BSH</div>
         </div>
       </div>
 

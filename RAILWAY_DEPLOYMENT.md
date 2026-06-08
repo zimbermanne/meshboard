@@ -20,7 +20,7 @@ Both services are in this repository but deploy independently.
 
 **Android (existing installs):** If the app still has the old URL in preferences, open **Mesh → Railway Server Sync** and paste `https://meshboard-super-node.up.railway.app`, or clear app data.
 
-See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYNC.md)** for credits (local 5.0 vs server 0), post approval → feed, and operator testing steps.
+See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYN./MOBILE_AND_SYNC.md)** for credits (local 5.0 vs server 0), post approval → feed, and operator testing steps.
 
 ---
 
@@ -56,7 +56,7 @@ railway deploy
 ```
 
 **In Railway Dashboard for Backend Service:**
-- Set Name: `meshboard-super-node` (or match your Railway service name)
+- Set Name: `meshboard-super-node` (SUPERNODE-ARUSHA-01)
 - Root Directory: `Backend`
 - Under Variables, add these after linking PostgreSQL:
 
@@ -108,7 +108,7 @@ Redeploy/rebuild after changing `VITE_API_BASE_URL` — Vite bakes it into the b
 
 ### 6. Update Backend CORS
 
-Set backend `ALLOWED_ORIGINS` to your deployed frontend origin (exact URL, including `https://`):
+Set backend `ALLOWED_ORIGINS` to your deployed frontend origin (exact URL, including `https://your-frontend.up.railway.app`:
 
 ```
 ALLOWED_ORIGINS=https://your-frontend.up.railway.app
@@ -130,7 +130,7 @@ ALLOWED_ORIGINS=https://your-frontend.up.railway.app
 
 ```bash
 railway logs -s meshboard-super-node
-railway logs -s <your-frontend-service-name>
+railway logs -s <https://meshboard-frontend-production.up.railway.app/>
 ```
 
 ### Database
@@ -170,7 +170,7 @@ The background scheduler is built into the backend service. Logs will show:
 2. **Health checks** — Both services expose `GET /health` (frontend and backend). Do not point healthcheck at `/api/...`.
 3. **`RUN_MIGRATIONS`** — Keep `false` on Railway unless you are running a one-time migration. `true` used to block startup before the server listened.
 4. **Frontend build** — `vite` is a devDependency. The Frontend `nixpacks.toml` runs `npm install --include=dev` then `npm run build`. If build logs show `vite: not found`, redeploy after pulling latest config.
-5. **`DATABASE_URL`** — Backend must reference PostgreSQL: `${{ Postgres.DATABASE_URL }}` or `${{ DATABASE.URL }}` (exact name depends on your linked service).
+5. **`DATABASE_URL`** — Backend must reference PostgreSQL: `${{https://railway.com/project/9cf3d8e8-6c52-4138-bac5-8051e5b0fffb/service/936d25fd-029f-461b-876a-98f3f7b5f7d9?environmentId=a414304f-ac09-400b-85ea-257c47293326&id=e92b9966-b432-46a3-bbc3-9b2c629f5807#deploy }}` or `${{ postgresql://postgres:IixyQgfBEFUETRIrrHJsVCEUwkqlJCTQ@postgres.railway.internal:5432/railway }}` (exact name depends on your linked service).
 6. **Redeploy** both services after pushing these fixes.
 
 ### "DATABASE connection timeout"
