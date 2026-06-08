@@ -13,7 +13,7 @@ export default function Payments() {
       <style>{sharedCss}</style>
       <div className="section-head">
         <span className="section-title">Payment Log</span>
-        <span style={{fontFamily:"var(--mono)",fontSize:13,color:"var(--accent)"}}>Total: ${parseFloat(total).toFixed(2)}</span>
+        <span style={{fontFamily:"var(--mono)",fontSize:13,color:"var(--accent)"}}>Total: {parseFloat(total).toFixed(2)} BSH</span>
       </div>
       {error && <ErrorMsg msg={error} />}
       {loading && <Spinner />}
@@ -21,7 +21,7 @@ export default function Payments() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Payment ID</th><th>Node</th><th>Amount</th><th>Method</th><th>Token</th><th>Date</th></tr>
+              <tr><th>Payment ID</th><th>Node</th><th>Amount (BSH)</th><th>Method</th><th>Token</th><th>Date</th></tr>
             </thead>
             <tbody>
               {payments.length === 0 && (
@@ -31,7 +31,7 @@ export default function Payments() {
                 <tr key={p.id}>
                   <td><span className="mono">{p.id}</span></td>
                   <td><div>{p.display_name}</div><div className="node-id">{p.node_id}</div></td>
-                  <td><span className="mono" style={{color:"var(--accent)"}}>${parseFloat(p.amount).toFixed(2)}</span></td>
+                  <td><span className="mono" style={{color:"var(--accent)"}}>{parseFloat(p.baosh_amount || p.amount || 0).toFixed(2)} BSH</span></td>
                   <td><span className={`badge ${p.method === "cash" ? "badge-approved" : "badge-redeemed"}`}>{p.method}</span></td>
                   <td><span className="mono" style={{fontSize:11}}>{p.token_id || "—"}</span></td>
                   <td><span className="mono" style={{fontSize:11}}>{new Date(p.created_at).toLocaleString()}</span></td>

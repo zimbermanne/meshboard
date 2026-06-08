@@ -25,7 +25,7 @@ export default function NodeRegistry() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>NODE ID</th><th>Display Name</th><th>Registered</th><th>Last Seen</th><th>Balance</th><th>Spent</th><th>Posts</th></tr>
+              <tr><th>NODE ID</th><th>Display Name</th><th>Registered</th><th>Last Seen</th><th>Balance (BSH)</th><th>Spent (BSH)</th><th>Posts</th></tr>
             </thead>
             <tbody>
               {data.length === 0 && (
@@ -37,10 +37,10 @@ export default function NodeRegistry() {
                   <td style={{fontWeight:500}}>{n.display_name}</td>
                   <td><span className="mono" style={{fontSize:11}}>{new Date(n.registered_at).toLocaleDateString()}</span></td>
                   <td><span className="mono" style={{fontSize:11}}>{n.last_seen_at ? new Date(n.last_seen_at).toLocaleString() : "—"}</span></td>
-                  <td><span className="mono" style={{color: parseFloat(n.credit_balance) > 0 ? "var(--accent)" : "var(--muted)"}}>
-                    ${parseFloat(n.credit_balance).toFixed(2)}
+                  <td><span className="mono" style={{color: parseFloat(n.baosh_balance) > 0 ? "var(--accent)" : "var(--muted)"}}>
+                    {parseFloat(n.baosh_balance || 0).toFixed(2)} BSH
                   </span></td>
-                  <td><span className="mono">${parseFloat(n.total_spent).toFixed(2)}</span></td>
+                  <td><span className="mono">{parseFloat(n.total_spent_baosh || 0).toFixed(2)} BSH</span></td>
                   <td><span className="mono">{n.total_posts ?? 0}</span></td>
                 </tr>
               ))}

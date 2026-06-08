@@ -70,7 +70,7 @@ router.post(
       await pool.query(
         `INSERT INTO sync_queue(target_node, type, payload, priority)
          VALUES($1, 'registration_ack', $2, 2)`,
-        [id, JSON.stringify({ node_id: id, credit_balance: result.rows[0].credit_balance })]
+        [id, JSON.stringify({ node_id: id, credit_balance: result.rows[0].credit_balance, baosh_balance: result.rows[0].baosh_balance })]
       );
 
       res.status(isNew ? 201 : 200).json({ node: result.rows[0], registered: isNew });

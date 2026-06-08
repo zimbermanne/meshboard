@@ -19,7 +19,9 @@ async function migrate() {
         display_name  TEXT NOT NULL,
         registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         credit_balance NUMERIC(10,2) NOT NULL DEFAULT 0,
+        baosh_balance NUMERIC(10,2) NOT NULL DEFAULT 0,
         total_spent    NUMERIC(10,2) NOT NULL DEFAULT 0,
+        total_spent_baosh NUMERIC(10,2) NOT NULL DEFAULT 0,
         last_seen_at   TIMESTAMPTZ,
         is_active      BOOLEAN NOT NULL DEFAULT TRUE
       );
@@ -31,6 +33,7 @@ async function migrate() {
         id          SERIAL PRIMARY KEY,
         node_id     TEXT NOT NULL REFERENCES nodes(id),
         amount      NUMERIC(10,2) NOT NULL,
+        baosh_amount NUMERIC(10,2) NOT NULL,
         type        TEXT NOT NULL,
         reference   TEXT,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -43,6 +46,7 @@ async function migrate() {
         id            TEXT PRIMARY KEY,
         node_id       TEXT NOT NULL REFERENCES nodes(id),
         amount        NUMERIC(10,2) NOT NULL,
+        baosh_amount  NUMERIC(10,2) NOT NULL,
         status        TEXT NOT NULL DEFAULT 'pending',
         created_by    TEXT NOT NULL,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -57,6 +61,7 @@ async function migrate() {
         id          TEXT PRIMARY KEY,
         node_id     TEXT NOT NULL REFERENCES nodes(id),
         amount      NUMERIC(10,2) NOT NULL,
+        baosh_amount NUMERIC(10,2) NOT NULL,
         method      TEXT NOT NULL,
         operator    TEXT NOT NULL,
         token_id    TEXT REFERENCES tokens(id),
@@ -75,6 +80,7 @@ async function migrate() {
         phone           TEXT,
         package_days    INTEGER NOT NULL,
         credit_cost     NUMERIC(10,2) NOT NULL,
+        baosh_cost      NUMERIC(10,2) NOT NULL,
         is_free_post    BOOLEAN NOT NULL DEFAULT FALSE,
         status          TEXT NOT NULL DEFAULT 'pending',
         rejection_reason TEXT,
