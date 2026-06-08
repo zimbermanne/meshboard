@@ -24,7 +24,7 @@ function backendOrigin() {
   const raw =
     process.env.BACKEND_URL ||
     process.env.VITE_API_BASE_URL ||
-    "http://localhost:4000";
+    "http://localhost:8080";
   return raw.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
