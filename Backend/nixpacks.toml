@@ -6,4 +6,5 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["echo Backend: no compile step"]
+dependsOn = ["install"]
+cmds = ["npm run build"]
