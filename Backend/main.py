@@ -1,8 +1,56 @@
-import os
+# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+from init_db import init_database  # Import the agent
+from routes import users  # Your routes
+import os
 from pydantic import BaseModel
 from typing import List, Optional
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize database on startup
+logger.info("Running database initialization...")
+init_database()
+
+# Create FastAPI app
+app = FastAPI(title="MeshBoard Super-Node API")
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routes
+app.include_router(users.router)
+
+@app.get("/")
+def read_root():
+    return {"message": "MeshBoard Super-Node API"}
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "database": "connected",
+        "api": "running"
+    }
+
+# Run with: uvicorn main:app --reload
+
+
 
 app = FastAPI(
     title="MeshBoard Supernode API",
