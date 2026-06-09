@@ -108,3 +108,22 @@ CREATE TABLE IF NOT EXISTS sync_queue (
     status VARCHAR(20) DEFAULT 'queued',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Example modification for all your tables:
+CREATE TABLE IF NOT EXISTS "user" (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phone_number VARCHAR(20) UNIQUE NOT NULL,
+    email VARCHAR(150) UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    credit_balance INT DEFAULT 0,
+    role VARCHAR(20) DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS node (
+    id SERIAL PRIMARY KEY,
+    hardware_id VARCHAR(100) UNIQUE NOT NULL,
+    node_name VARCHAR(100),
+    ...
+);
