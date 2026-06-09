@@ -6,6 +6,9 @@ export function StatusBanner({ stats, statsError }) {
 
   if (statsError) {
     const isDb = health?.database === "disconnected";
+    const isBackendConfig =
+      /BACKEND_URL|ENOTFOUND base|placeholder/i.test(statsError) ||
+      statsError.includes("Backend unreachable");
     return (
       <div className="error-msg" style={{ marginBottom: 20 }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>
@@ -19,11 +22,19 @@ export function StatusBanner({ stats, statsError }) {
               or locally run PostgreSQL and set <code>DB_*</code> in <code>.env</code>, then{" "}
               <code>npm run migrate</code> in <code>Backend/</code>.
             </>
+          ) : isBackendConfig ? (
+            <>
+              Railway Frontend service: set <code>BACKEND_URL</code> to your backend public URL with{" "}
+              <strong>no</strong> <code>/api</code> suffix, e.g.{" "}
+              <code>https://meshboard-super-node.up.railway.app</code>. Remove any{" "}
+              <code>VITE_API_BASE_URL=base</code> or placeholder value. Leave{" "}
+              <code>VITE_API_BASE_URL</code> unset so the dashboard uses the <code>/api</code> proxy.
+            </>
           ) : (
             <>
               Local dev: start the backend with <code>cd Backend &amp;&amp; npm start</code> (port 4000),
-              then <code>cd Frontend &amp;&amp; npm run dev</code> (port 3000). Vite proxies <code>/api</code> automatically.
-              Railway: set <code>BACKEND_URL</code> on the Frontend service.
+              then <code>cd Frontend &amp;&amp; npm run dev</code> (port 8080). Vite proxies{" "}
+              <code>/api</code> automatically.
             </>
           )}
         </div>

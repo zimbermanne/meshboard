@@ -7,14 +7,44 @@
 
 const NODE_ID_RE = /^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
+const PLACEHOLDER_HOSTS = new Set(["base", "backend", "host"]);
+
 function normalizeApiBase(raw) {
-  let base = (raw || "/api").trim().replace(/\/+$/, "");
-  // Common mistake: .../api/nodes — strips trailing resource segment
-  base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
-  if (!base.endsWith("/api")) {
-    if (base === "" || base === "/") return "/api";
-    return `${base}/api`;
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "/api";
+
+  // Relative proxy path (recommended on Railway — serve.js proxies /api → BACKEND_URL)
+  if (trimmed.startsWith("/")) {
+    let base = trimmed.replace(/\/+$/, "");
+    base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
+    if (!base.endsWith("/api")) {
+      if (base === "" || base === "/") return "/api";
+      return `${base}/api`;
+    }
+    return base;
   }
+
+  // Absolute URL baked at build time
+  if (!/^https?:\/\//i.test(trimmed)) {
+    console.warn(
+      "[api] Ignoring invalid VITE_API_BASE_URL — use /api (proxy) or https://host.up.railway.app/api:",
+      raw
+    );
+    return "/api";
+  }
+  try {
+    const { hostname } = new URL(trimmed);
+    if (PLACEHOLDER_HOSTS.has(hostname.toLowerCase())) {
+      console.warn("[api] Ignoring placeholder VITE_API_BASE_URL hostname:", hostname);
+      return "/api";
+    }
+  } catch {
+    return "/api";
+  }
+
+  let base = trimmed.replace(/\/+$/, "");
+  base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
+  if (!base.endsWith("/api")) return `${base}/api`;
   return base;
 }
 

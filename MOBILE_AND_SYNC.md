@@ -23,7 +23,7 @@ Mobile sync depends on a working backend and PostgreSQL connection. Before testi
 | Client | Base URL |
 |--------|----------|
 | **Android** | `https://meshboard-super-node.up.railway.app` (no `/api` — Retrofit adds `api/sync`, `api/posts`, etc.) |
-| **Web dashboard** | `VITE_API_BASE_URL=https://meshboard-super-node.up.railway.app/api` |
+| **Web dashboard** | Set `BACKEND_URL=https://meshboard-super-node.up.railway.app` on the Frontend Railway service (proxy `/api`). Do not use placeholder values like `base`. |
 
 ---
 

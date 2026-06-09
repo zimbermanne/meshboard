@@ -20,18 +20,59 @@ const TYPES   = {
   ".ttf":  "font/ttf",
 };
 
+const PLACEHOLDER_HOSTS = new Set(["base", "backend", "host", "localhost"]);
+
+function normalizeBackendOrigin(raw) {
+  if (!raw || !String(raw).trim()) return null;
+  let origin = String(raw).trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+  if (!/^https?:\/\//i.test(origin)) {
+    console.error(
+      `[Frontend] Invalid BACKEND_URL "${raw}" — must be a full URL like https://meshboard-super-node.up.railway.app (no /api suffix)`
+    );
+    return null;
+  }
+  try {
+    const { hostname } = new URL(origin);
+    if (!hostname || PLACEHOLDER_HOSTS.has(hostname.toLowerCase())) {
+      console.error(
+        `[Frontend] BACKEND_URL hostname "${hostname}" looks like a placeholder — set the real Railway backend URL`
+      );
+      return null;
+    }
+  } catch {
+    console.error(`[Frontend] Invalid BACKEND_URL "${raw}" — not a valid URL`);
+    return null;
+  }
+  return origin;
+}
+
 function backendOrigin() {
-  const raw =
-    process.env.BACKEND_URL ||
-    process.env.VITE_API_BASE_URL ||
-    "http://localhost:8080";
-  return raw.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+  const fromEnv = normalizeBackendOrigin(process.env.BACKEND_URL);
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "[Frontend] BACKEND_URL is required in production (e.g. https://meshboard-super-node.up.railway.app)"
+    );
+    return null;
+  }
+  return "http://localhost:4000";
 }
 
 const BACKEND = backendOrigin();
 const HEALTH_PROBE_MS = parseInt(process.env.HEALTH_PROBE_TIMEOUT_MS || "5000", 10);
 
+function backendConfigError() {
+  return {
+    reachable: false,
+    database: "disconnected",
+    error:
+      "BACKEND_URL is missing or invalid on the Frontend Railway service. " +
+      "Set BACKEND_URL=https://meshboard-super-node.up.railway.app (no /api suffix).",
+  };
+}
+
 async function probeBackendHealth() {
+  if (!BACKEND) return backendConfigError();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), HEALTH_PROBE_MS);
   try {
@@ -64,6 +105,12 @@ function readBody(req) {
 }
 
 async function proxyApi(req, res, urlPath) {
+  if (!BACKEND) {
+    const msg = backendConfigError().error;
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: msg }));
+    return;
+  }
   const qs     = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const target = `${BACKEND}${urlPath}${qs}`;
   const body   = await readBody(req);
