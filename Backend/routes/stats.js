@@ -1,6 +1,9 @@
 const router = require("express").Router();
 const pool = require("../db/pool");
 const { hasDatabaseConfig, getDatabaseDiagnostics } = require("../db/resolveDatabaseConfig");
+const { requireAuth } = require("../middleware/auth");
+
+router.use(requireAuth);
 
 // GET /api/stats — dashboard overview (also useful for mobile status screens)
 router.get("/", async (req, res) => {

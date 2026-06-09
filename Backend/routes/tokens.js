@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, validationResult } = require("express-validator");
+const { requireAuth } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -15,7 +16,7 @@ function generateTokenId(nodeId) {
 }
 
 // GET /api/tokens — all tokens with optional filters
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { node_id, status } = req.query;
     let sql = `
@@ -38,6 +39,7 @@ router.get("/", async (req, res) => {
 // POST /api/tokens/generate — operator creates a credit token
 router.post(
   "/generate",
+  requireAuth,
   body("node_id").matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/),
   body("amount").isFloat({ min: 1, max: 1000 }),
   body("operator").trim().notEmpty(),

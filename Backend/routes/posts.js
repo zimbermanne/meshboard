@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, validationResult } = require("express-validator");
+const { requireAuth } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -9,7 +10,7 @@ const validate = (req, res, next) => {
 };
 
 // GET /api/posts/active — must be registered before "/" (Express route order)
-router.get("/active", async (req, res) => {
+router.get("/active", requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name,
@@ -27,7 +28,7 @@ router.get("/active", async (req, res) => {
 });
 
 // GET /api/posts — list posts, filterable by status
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `
@@ -100,7 +101,7 @@ router.post(
 );
 
 // POST /api/posts/:id/approve
-router.post("/:id/approve", async (req, res) => {
+router.post("/:id/approve", requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -187,7 +188,7 @@ router.post("/:id/approve", async (req, res) => {
 });
 
 // POST /api/posts/:id/reject
-router.post("/:id/reject", async (req, res) => {
+router.post("/:id/reject", requireAuth, async (req, res) => {
   try {
     const postRes = await pool.query("SELECT * FROM posts WHERE id=$1", [req.params.id]);
     if (!postRes.rows.length) return res.status(404).json({ error: "Post not found" });
@@ -206,6 +207,7 @@ router.post("/:id/reject", async (req, res) => {
 // POST /api/posts/:id/delete — remove pending post (operator)
 router.post(
   "/:id/delete",
+  requireAuth,
   body("reason").optional().trim(),
   validate,
   async (req, res) => {
@@ -227,7 +229,7 @@ router.post(
 );
 
 // POST /api/posts/:id/expire — manual operator expiry
-router.post("/:id/expire", async (req, res) => {
+router.post("/:id/expire", requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "UPDATE posts SET expires_at=NOW() WHERE id=$1 AND status='approved' RETURNING *",

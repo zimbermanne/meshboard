@@ -90,6 +90,7 @@ app.get("/api/health", async (req, res) => {
 });
 
 app.use("/api/setup", safeRequire("./routes/setup"));
+app.use("/api/auth", safeRequire("./routes/auth"));
 app.use("/api/nodes", safeRequire("./routes/nodes"));
 app.use("/api/posts", safeRequire("./routes/posts"));
 app.use("/api/tokens", safeRequire("./routes/tokens"));

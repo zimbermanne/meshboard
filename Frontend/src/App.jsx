@@ -5,9 +5,13 @@ import LiveBroadcasts from "./pages/LiveBroadcasts";
 import NodeRegistry  from "./pages/NodeRegistry";
 import Tokens        from "./pages/Tokens";
 import Payments      from "./pages/Payments";
+import Messages      from "./pages/Messages";
+import Login         from "./pages/Login";
+import Register      from "./pages/Register";
 import { useApi }    from "./hooks/useApi";
 import { api }       from "./api/client";
 import { StatusBanner } from "./components/StatusBanner";
+import { useAuth }   from "./context/AuthContext";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
@@ -34,6 +38,8 @@ const CSS = `
   .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-family:var(--mono);font-weight:600;padding:1px 6px;border-radius:10px;}
   .nav-icon{font-size:15px;width:18px;text-align:center;}
   .sidebar-footer{padding:16px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);font-family:var(--mono);}
+  .sidebar-user{padding:12px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);}
+  .sidebar-user strong{color:var(--text);display:block;font-size:13px;margin-bottom:2px;}
   .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
   .topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 28px;gap:16px;background:var(--surface);}
   .topbar-title{font-size:14px;font-weight:600;}
@@ -46,6 +52,7 @@ const CSS = `
 `;
 
 const NAV_ITEMS = [
+  { id: "messages",   icon: "✉", label: "Messages"        },
   { id: "overview",   icon: "◈", label: "Overview"        },
   { id: "queue",      icon: "⊞", label: "Approval Queue"  },
   { id: "broadcasts", icon: "◉", label: "Live Broadcasts" },
@@ -54,68 +61,114 @@ const NAV_ITEMS = [
   { id: "payments",   icon: "⊕", label: "Payment Log"     },
 ];
 
-const PAGES = { overview: Overview, queue: ApprovalQueue, broadcasts: LiveBroadcasts, nodes: NodeRegistry, tokens: Tokens, payments: Payments };
+const PAGES = {
+  messages: Messages,
+  overview: Overview,
+  queue: ApprovalQueue,
+  broadcasts: LiveBroadcasts,
+  nodes: NodeRegistry,
+  tokens: Tokens,
+  payments: Payments,
+};
 
-export default function App() {
-  const [active, setActive] = useState("overview");
+function AuthGate() {
+  const [mode, setMode] = useState("login");
+  if (mode === "register") {
+    return <Register onSwitchToLogin={() => setMode("login")} />;
+  }
+  return <Login onSwitchToRegister={() => setMode("register")} />;
+}
+
+function Dashboard() {
+  const { user, logout } = useAuth();
+  const [active, setActive] = useState("messages");
   const { data: stats, reload: reloadStats, error: statsError, loading: statsLoading } = useApi(() => api.stats());
   const pendingCount = stats?.pending_approval || 0;
   const Page = PAGES[active];
   const now  = new Date().toLocaleString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short", year: "numeric" });
 
   return (
-    <>
-      <style>{CSS}</style>
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="sidebar-logo">
-            <div className="logo-mark">MeshBoard</div>
-            <div className="logo-sub">Super-Node</div>
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="logo-mark">MeshBoard</div>
+          <div className="logo-sub">Super-Node</div>
+        </div>
+        <div className="sidebar-status">
+          <div className="status-dot" style={statsError ? { background: "var(--red)", boxShadow: "0 0 6px var(--red)" } : undefined} />
+          {statsError ? "API OFFLINE" : "ONLINE"}
+        </div>
+        {statsError && (
+          <div style={{ padding: "8px 20px", fontSize: 10, color: "var(--red)", fontFamily: "var(--mono)", borderBottom: "1px solid var(--border)", lineHeight: 1.4 }}>
+            {statsError}
           </div>
-          <div className="sidebar-status">
-            <div className="status-dot" style={statsError ? { background: "var(--red)", boxShadow: "0 0 6px var(--red)" } : undefined} />
-            {statsError ? "API OFFLINE" : "ONLINE"}
-          </div>
-          {statsError && (
-            <div style={{ padding: "8px 20px", fontSize: 10, color: "var(--red)", fontFamily: "var(--mono)", borderBottom: "1px solid var(--border)", lineHeight: 1.4 }}>
-              {statsError}
+        )}
+        <nav className="nav">
+          {NAV_ITEMS.map(item => (
+            <div key={item.id} className={`nav-item ${active === item.id ? "active" : ""}`} onClick={() => setActive(item.id)}>
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+              {item.id === "queue" && pendingCount > 0 && (
+                <span className="nav-badge">{pendingCount}</span>
+              )}
             </div>
-          )}
-          <nav className="nav">
-            {NAV_ITEMS.map(item => (
-              <div key={item.id} className={`nav-item ${active === item.id ? "active" : ""}`} onClick={() => setActive(item.id)}>
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-                {item.id === "queue" && pendingCount > 0 && (
-                  <span className="nav-badge">{pendingCount}</span>
-                )}
-              </div>
-            ))}
-          </nav>
-          <div className="sidebar-footer">
-            {import.meta.env.VITE_SUPERNODE_ID || "SUPERNODE-ARUSHA-01"}
-          </div>
-        </aside>
+          ))}
+        </nav>
+        <div className="sidebar-user">
+          <strong>{user?.name}</strong>
+          {user?.email}
+        </div>
+        <div className="sidebar-footer">
+          {import.meta.env.VITE_SUPERNODE_ID || "SUPERNODE-ARUSHA-01"}
+        </div>
+      </aside>
 
-        <div className="main">
-          <div className="topbar">
-            <span className="topbar-title">{NAV_ITEMS.find(n => n.id === active)?.label}</span>
-            <div className="topbar-right">
-              <span className="sync-info">{now}</span>
-              <button
-                onClick={reloadStats}
-                style={{ padding:"5px 10px", fontSize:11, background:"transparent", color:"var(--muted)", border:"1px solid var(--border)", borderRadius:4, cursor:"pointer", fontFamily:"var(--mono)" }}
-              >
-                ↺ Refresh
-              </button>
-            </div>
-          </div>
-          <div className="content">
-            {!statsLoading && <StatusBanner stats={stats} statsError={statsError} />}
-            <Page onApprove={reloadStats} />
+      <div className="main">
+        <div className="topbar">
+          <span className="topbar-title">{NAV_ITEMS.find(n => n.id === active)?.label}</span>
+          <div className="topbar-right">
+            <span className="sync-info">{now}</span>
+            <button
+              onClick={reloadStats}
+              style={{ padding:"5px 10px", fontSize:11, background:"transparent", color:"var(--muted)", border:"1px solid var(--border)", borderRadius:4, cursor:"pointer", fontFamily:"var(--mono)" }}
+            >
+              ↺ Refresh
+            </button>
+            <button
+              onClick={logout}
+              style={{ padding:"5px 10px", fontSize:11, background:"transparent", color:"var(--red)", border:"1px solid rgba(255,82,82,.3)", borderRadius:4, cursor:"pointer", fontFamily:"var(--mono)" }}
+            >
+              Log out
+            </button>
           </div>
         </div>
+        <div className="content">
+          {!statsLoading && <StatusBanner stats={stats} statsError={statsError} />}
+          <Page onApprove={reloadStats} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const { isAuthenticated, booting } = useAuth();
+
+  if (booting) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontFamily: "var(--mono)" }}>
+          Loading…
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <style>{CSS}</style>
+      {isAuthenticated ? <Dashboard /> : <AuthGate />}
     </>
   );
 }

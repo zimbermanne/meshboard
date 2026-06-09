@@ -43,13 +43,23 @@ const BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 console.log("[api] base URL:", BASE);
 
-async function req(method, path, body) {
+let authToken = null;
+
+export function setAuthToken(token) {
+  authToken = token || null;
+}
+
+async function req(method, path, body, { auth = true } = {}) {
   const url = `${BASE}${path}`;
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (auth && authToken) headers.Authorization = `Bearer ${authToken}`;
+
   let res;
   try {
     res = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : {},
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (networkErr) {
@@ -73,6 +83,9 @@ async function req(method, path, body) {
   }
 
   if (!res.ok) {
+    if (res.status === 401 && auth) {
+      throw new Error(data.error || "Please log in again.");
+    }
     const hint =
       data.hint ||
       (/\/api\/nodes\/(stats|posts|tokens|payments|sync)/.test(url)
@@ -89,7 +102,11 @@ async function req(method, path, body) {
 }
 
 export const api = {
-  health:         ()           => req("GET",   "/health"),
+  health:         ()           => req("GET",   "/health", undefined, { auth: false }),
+  register:       (body)       => req("POST",  "/auth/register", body, { auth: false }),
+  login:          (body)       => req("POST",  "/auth/login", body, { auth: false }),
+  me:             ()           => req("GET",   "/auth/me"),
+
   stats:          ()           => req("GET",   "/stats"),
 
   nodes:          (search)     => req("GET",   `/nodes${search ? `?search=${encodeURIComponent(search)}` : ""}`),

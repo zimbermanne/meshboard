@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, param, query, validationResult } = require("express-validator");
+const { requireAuth } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -26,7 +27,7 @@ function requireNodeId(req, res, next) {
 }
 
 // GET /api/nodes — list all nodes (searchable)
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { search } = req.query;
     let sql = `
@@ -81,7 +82,7 @@ router.post(
 );
 
 // GET /api/nodes/:id — single node with full history
-router.get("/:id", requireNodeId, async (req, res) => {
+router.get("/:id", requireAuth, requireNodeId, async (req, res) => {
   try {
     const { id } = req.params;
     const nodeRes = await pool.query("SELECT * FROM nodes WHERE id = $1", [id]);
@@ -109,6 +110,7 @@ router.get("/:id", requireNodeId, async (req, res) => {
 // PATCH /api/nodes/:id/display-name
 router.patch(
   "/:id/display-name",
+  requireAuth,
   requireNodeId,
   body("display_name").trim().isLength({ min: 1, max: 80 }),
   validate,
@@ -129,6 +131,7 @@ router.patch(
 // POST /api/nodes/:id/deactivate — operator blocks node from posting
 router.post(
   "/:id/deactivate",
+  requireAuth,
   requireNodeId,
   body("reason").optional().trim(),
   validate,
@@ -152,7 +155,7 @@ router.post(
 );
 
 // POST /api/nodes/:id/reactivate
-router.post("/:id/reactivate", requireNodeId, async (req, res) => {
+router.post("/:id/reactivate", requireAuth, requireNodeId, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE nodes SET is_active = TRUE WHERE id = $1 RETURNING *`,

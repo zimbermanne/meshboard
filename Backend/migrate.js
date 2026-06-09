@@ -118,6 +118,20 @@ async function migrate() {
       );
     `);
 
+    // ── Dashboard users (login / registration) ───────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dashboard_users (
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        phone         TEXT NOT NULL,
+        email         TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (email),
+        UNIQUE (phone)
+      );
+    `);
+
     // ── Sync queue ─────────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS sync_queue (
