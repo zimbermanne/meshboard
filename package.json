@@ -1,0 +1,8 @@
+{
+  "name": "meshboard-supernode",
+  "private": true,
+  "scripts": {
+    "connectivity": "node scripts/connectivity-agent.js",
+    "connectivity:local": "node scripts/connectivity-agent.js --local"
+  }
+}

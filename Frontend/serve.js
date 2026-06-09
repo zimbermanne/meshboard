@@ -29,6 +29,29 @@ function backendOrigin() {
 }
 
 const BACKEND = backendOrigin();
+const HEALTH_PROBE_MS = parseInt(process.env.HEALTH_PROBE_TIMEOUT_MS || "5000", 10);
+
+async function probeBackendHealth() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HEALTH_PROBE_MS);
+  try {
+    const res = await fetch(`${BACKEND}/api/health`, { signal: controller.signal });
+    const data = await res.json().catch(() => ({}));
+    return {
+      reachable: res.ok || res.status === 503,
+      database: data.database || "unknown",
+      backendStatus: data.status,
+    };
+  } catch (err) {
+    return {
+      reachable: false,
+      database: "disconnected",
+      error: err.message || String(err),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -66,13 +89,23 @@ async function proxyApi(req, res, urlPath) {
   }
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath !== "/" && urlPath.endsWith("/")) urlPath = urlPath.slice(0, -1);
 
   if (urlPath === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", dist: DIST_OK, backend: BACKEND }));
+    const probe = await probeBackendHealth();
+    const backendOk = probe.reachable && probe.database === "connected";
+    const body = {
+      status: backendOk ? "ok" : "degraded",
+      dist: DIST_OK,
+      backend: BACKEND,
+      backendReachable: probe.reachable,
+      database: probe.database,
+    };
+    if (probe.error) body.error = probe.error;
+    res.writeHead(backendOk ? 200 : 503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
     return;
   }
 

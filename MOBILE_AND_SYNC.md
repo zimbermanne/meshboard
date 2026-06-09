@@ -4,6 +4,20 @@ How the Android client and `https://meshboard-super-node.up.railway.app` stay in
 
 ---
 
+## Prerequisites (backend must be healthy)
+
+Mobile sync depends on a working backend and PostgreSQL connection. Before testing the Android app:
+
+1. `GET /api/health` on the backend must return `"database": "connected"`.
+2. After Railway deploy, run from the repo root:
+   ```bash
+   BACKEND_URL=https://meshboard-super-node.up.railway.app npm run connectivity
+   ```
+   Or curl: `curl https://meshboard-super-node.up.railway.app/api/health`
+3. For Railway deploy and connection troubleshooting, use the project skill: `.cursor/skills/railway-connectivity/SKILL.md`
+
+---
+
 ## URLs
 
 | Client | Base URL |
