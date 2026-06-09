@@ -20,7 +20,7 @@ Both services are in this repository but deploy independently.
 
 **Android (existing installs):** If the app still has the old URL in preferences, open **Mesh → Railway Server Sync** and paste `https://meshboard-super-node.up.railway.app`, or clear app data.
 
-See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYN./MOBILE_AND_SYNC.md)** for credits (local 5.0 vs server 0), post approval → feed, and operator testing steps.
+See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYNC.md)** for credits (local 5.0 vs server 0), post approval → feed, and operator testing steps.
 
 ---
 
@@ -38,7 +38,7 @@ See **[MOBILE_AND_SYNC.md](./MOBILE_AND_SYN./MOBILE_AND_SYNC.md)** for credits (
 
 ### 1. Create Railway Project
 
-1. Go to [railway.app](https://railway.app)
+1. Go to [railway.app](https://railway.app)[cite: 1]
 2. Create a new project
 3. Add a PostgreSQL service (Railway will create `DATABASE_URL` automatically)
 
@@ -53,207 +53,253 @@ railway link
 
 # Deploy backend (from root directory)
 railway deploy
-```
+In Railway Dashboard for Backend Service:
 
-**In Railway Dashboard for Backend Service:**
-- Set Name: `meshboard-super-node` (SUPERNODE-ARUSHA-01)
-- Root Directory: `Backend`
-- Under Variables, add these after linking PostgreSQL:
+  
+MD
 
-| Variable | Value |
-|----------|-------|
-| `NODE_ENV` | `production` |
-| `SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` (or your node name) |
-| `TOKEN_EXPIRY_HOURS` | `48` |
-| `ALLOWED_ORIGINS` | Your dashboard URL, e.g. `https://your-frontend.up.railway.app` |
-| `RUN_MIGRATIONS` | `false` (run `node migrate.js` via shell once; avoid `true` in production — it delays startup) |
-| `DATABASE_URL` | `${{ DATABASE.URL }}` (reference variable from PostgreSQL service) |
+Set Name: meshboard-super-node (SUPERNODE-ARUSHA-01)  
+MD
 
-### 3. Run Migrations (First Time Only)
+Root Directory: Backend
 
-After backend service starts:
+  
+MD
 
-```bash
+Under Variables, add these after linking PostgreSQL:  
+MD
+
+Variable	Value
+NODE_ENV	production
+SUPERNODE_ID	SUPERNODE-ARUSHA-01 (or your node name)
+TOKEN_EXPIRY_HOURS	48
+ALLOWED_ORIGINS	Your dashboard URL, e.g. https://your-frontend.up.railway.app
+RUN_MIGRATIONS	false (run manually via shell once to avoid delaying startup/blocking health checks)
+DATABASE_URL	${{ DATABASE.URL }} (reference variable from PostgreSQL service)
+3. Run Migrations (First Time Only)
+After backend service starts:  
+MD
+
+Bash
 # Via Railway CLI:
 railway shell
 
 # Inside the shell:
 node migrate.js
 exit
-```
+Alternative: Set RUN_MIGRATIONS=true temporarily, trigger a deploy, and immediately set it back to false once complete.  
+MD
 
-Or, set `RUN_MIGRATIONS=true` temporarily, deploy, then set back to `false`.
-
-### 4. Seed Database (Optional)
-
-```bash
+4. Seed Database (Optional)
+Bash
 railway shell
 node seed.js
-```
+5. Deploy Frontend Service
+Add a new Railway service linked to this repo  
+MD
 
-### 5. Deploy Frontend Service
+Root Directory: Frontend
 
-1. Add a new Railway service linked to this repo
-2. **Root Directory:** `Frontend`
-3. Build/start commands: use `Frontend/railway.toml` (build via nixpacks, start `node serve.js`)
+  
+MD
 
-**Environment Variables for Frontend (set before build):**
+Build/start commands: use Frontend/railway.toml (build via nixpacks, start node serve.js)  
+MD
 
-| Variable            | Value |
-|---------------------|-------|
-| `VITE_API_BASE_URL` | `https://meshboard-super-node.up.railway.app/api` |
-| `VITE_SUPERNODE_ID` | `SUPERNODE-ARUSHA-01` |
+Environment Variables for Frontend (set before build):
 
-Redeploy/rebuild after changing `VITE_API_BASE_URL` — Vite bakes it into the bundle.
+  
+MD
 
-### 6. Update Backend CORS
+Variable	Value
+VITE_API_BASE_URL	https://meshboard-super-node.up.railway.app/api
+VITE_SUPERNODE_ID	SUPERNODE-ARUSHA-01
+⚠️ Important: Vite bakes environment variables directly into the client-side bundle during the build step. If you change VITE_API_BASE_URL later in the Railway UI, you must hit Redeploy to trigger a fresh rebuild.  
+MD
 
-Set backend `ALLOWED_ORIGINS` to your deployed frontend origin (exact URL, including `https://your-frontend.up.railway.app`:
+6. Update Backend CORS
+Set backend ALLOWED_ORIGINS to your deployed frontend origin (exact URL, including protocol):  
+MD
 
-```
-ALLOWED_ORIGINS=https://your-frontend.up.railway.app
-```
+ALLOWED_ORIGINS=[https://your-frontend.up.railway.app](https://your-frontend.up.railway.app)
+Accessing the Deployment
+Backend: https://meshboard-super-node.up.railway.app
 
----
+  
+MD
 
-## Accessing the Deployment
+Health: https://meshboard-super-node.up.railway.app/health
 
-- **Backend:** `https://meshboard-super-node.up.railway.app`
-- **Health:** `https://meshboard-super-node.up.railway.app/health`
-- **Frontend:** your frontend Railway URL (set `ALLOWED_ORIGINS` to match)
+  
+MD
 
----
+Frontend: your frontend Railway URL (set ALLOWED_ORIGINS to match)  
+MD
 
-## Monitoring
-
-### Logs
-
-```bash
+Monitoring
+Logs
+Bash
 railway logs -s meshboard-super-node
-railway logs -s <https://meshboard-frontend-production.up.railway.app/>
-```
+railway logs -s meshboard-frontend
+Database
+Railway PostgreSQL is accessible directly. To connect:  
+MD
 
-### Database
-
-Railway PostgreSQL is accessible directly. To connect:
-
-```bash
+Bash
 railway connect -s postgres
-```
+Scheduler Status
+The background scheduler is built into the backend service. Logs will show:  
+MD
 
-### Scheduler Status
-
-The background scheduler is built into the backend service. Logs will show:
-
-```
 [scheduler] Background jobs started
 [scheduler] Expired 0 token(s)
 [scheduler] Queued expiry cleanup for 0 post(s)
-```
+Troubleshooting
+"buildCommand and startCommand cannot be the same"
+Backend startCommand must be node index.js (not npm start).  
+MD
 
----
+Frontend buildCommand = npm run build, startCommand = node serve.js.  
+MD
 
-## Troubleshooting
+In Railway Dashboard → service → Settings, clear any custom Build Command / Start Command that both say npm start (UI overrides repo config).  
+MD
 
-### "`buildCommand` and `startCommand` cannot be the same"
+Remove duplicate [start] from nixpacks.toml — only railway.toml should define how the server starts.  
+MD
 
-- **Backend** `startCommand` must be `node index.js` (not `npm start`).
-- **Frontend** `buildCommand` = `npm run build`, `startCommand` = `node serve.js`.
-- In Railway Dashboard → service → **Settings**, clear any custom **Build Command** / **Start Command** that both say `npm start` (UI overrides repo config).
-- Remove duplicate `[start]` from `nixpacks.toml` — only `railway.toml` should define how the server starts.
+"Activity heartbeat timeout" / deploy keeps failing
+Root directory — Each service must use its own folder:  
+MD
 
-### "Activity heartbeat timeout" / deploy keeps failing
+Backend service → Root Directory: Backend
 
-1. **Root directory** — Each service must use its own folder:
-   - Backend service → **Root Directory:** `Backend`
-   - Frontend service → **Root Directory:** `Frontend`
-2. **Health checks** — Both services expose `GET /health` (frontend and backend). Do not point healthcheck at `/api/...`.
-3. **`RUN_MIGRATIONS`** — Keep `false` on Railway unless you are running a one-time migration. `true` used to block startup before the server listened.
-4. **Frontend build** — `vite` is a devDependency. The Frontend `nixpacks.toml` runs `npm install --include=dev` then `npm run build`. If build logs show `vite: not found`, redeploy after pulling latest config.
-5. **`DATABASE_URL`** — Backend must reference PostgreSQL: `${{https://railway.com/project/9cf3d8e8-6c52-4138-bac5-8051e5b0fffb/service/936d25fd-029f-461b-876a-98f3f7b5f7d9?environmentId=a414304f-ac09-400b-85ea-257c47293326&id=e92b9966-b432-46a3-bbc3-9b2c629f5807#deploy }}` or `${{ postgresql://postgres:IixyQgfBEFUETRIrrHJsVCEUwkqlJCTQ@postgres.railway.internal:5432/railway }}` (exact name depends on your linked service).
-6. **Redeploy** both services after pushing these fixes.
+  
+MD
 
-### "DATABASE connection timeout"
+Frontend service → Root Directory: Frontend
 
-- Verify `DATABASE_URL` is set and references the PostgreSQL service
-- Check that PostgreSQL service is running in Railway Dashboard
-- Look for SSL connection errors in logs
+  
+MD
 
-### "CORS error from frontend"
+Health checks — Both services expose GET /health (frontend and backend). Do not point healthcheck at /api/....  
+MD
 
-- Update `ALLOWED_ORIGINS` on backend to include your frontend URL
-- Frontend URL must match exactly (including protocol and domain)
+RUN_MIGRATIONS — Keep false on Railway unless running a one-time setup. If set to true, a long-running migration script might block the server from listening, causing Railway's health check to time out and fail the deployment.  
+MD
 
-### "Scheduler not running"
+Frontend build — vite is a devDependency. The Frontend nixpacks.toml runs npm install --include=dev then npm run build. If build logs show vite: not found, redeploy after pulling latest config.  
+MD
 
-- Scheduler starts automatically when backend starts
-- If service crashes/redeploys, scheduler restarts — this is normal
-- Check logs for `[scheduler] Background jobs started`
+DATABASE_URL — Backend must reference PostgreSQL using your project's dynamic variable environment template, such as ${{ Postgres.DATABASE_URL }}. Never hardcode plaintext database connection strings inside repository configurations or files.  
+MD
 
-### "Migrations failed"
+Redeploy both services after pushing these fixes.  
+MD
 
-- Set `RUN_MIGRATIONS=true`, redeploy, then watch logs
-- If stuck, manually run: `railway shell → node migrate.js`
+"DATABASE connection timeout"
+Verify DATABASE_URL is set and references the PostgreSQL service  
+MD
 
-### "App shows 5 credits but dashboard shows 0"
+Check that PostgreSQL service is running in Railway Dashboard  
+MD
 
-- Expected before first sync: the Android app uses a **local 5.0** placeholder until `registration_ack` / `credit_update` from the server.
-- After sync, **server balance wins** (new nodes default to **0** in the database).
-- Re-sync from **Mesh → Railway Server Sync** if the UI did not update.
+Look for SSL connection errors in logs  
+MD
 
-### "Post not in Feed after submit"
+"CORS error from frontend"
+Update ALLOWED_ORIGINS on backend to include your frontend URL  
+MD
 
-- Posts stay **`pending`** until an operator **Approves** them in the dashboard **Approval Queue**.
-- After approve, the phone must **sync** to receive the `post_approved` outbound item.
+Frontend URL must match exactly (including protocol and domain)  
+MD
 
----
+"Scheduler not running"
+Scheduler starts automatically when backend starts  
+MD
 
-## Important Notes
+If service crashes/redeploys, scheduler restarts — this is normal  
+MD
 
-### SSL and DATABASE_URL
+Check logs for [scheduler] Background jobs started
 
-Railway's PostgreSQL requires SSL. The backend now includes:
+  
+MD
 
-```javascript
+"Migrations failed"
+Set RUN_MIGRATIONS=true, redeploy, then watch logs  
+MD
+
+If stuck, manually run: railway shell → node migrate.js
+
+  
+MD
+
+"App shows 5 credits but dashboard shows 0"
+Expected before first sync: the Android app uses a local 5.0 placeholder until registration_ack / credit_update from the server.  
+MD
+
+After sync, server balance wins (new nodes default to 0 in the database).  
+MD
+
+Re-sync from Mesh → Railway Server Sync if the UI did not update.  
+MD
+
+"Post not in Feed after submit"
+Posts stay pending until an operator Approves them in the dashboard Approval Queue.  
+MD
+
+After approve, the phone must sync to receive the post_approved outbound item.  
+MD
+
+Important Notes
+SSL and DATABASE_URL
+[cite: 1]
+Railway's PostgreSQL requires SSL. The backend now includes:[cite: 1]
+
+JavaScript
 ssl: { rejectUnauthorized: false }
-```
+This is configured automatically when DATABASE_URL is detected. Local development can use individual connection variables without SSL.[cite: 1]
 
-This is configured automatically when `DATABASE_URL` is detected. Local development can use individual connection variables without SSL.
+Scheduler Behavior
+[cite: 1]
+The scheduler (services/scheduler.js) runs inside the Node.js process:[cite: 1]
 
-### Scheduler Behavior
+Expires tokens every 1 minute[cite: 1]
 
-The scheduler (`services/scheduler.js`) runs inside the Node.js process:
-- Expires tokens every 1 minute
-- Checks for post expiry every 5 minutes
-- Runs immediately on startup
-- Restarts if the service restarts (harmless)
+Checks for post expiry every 5 minutes[cite: 1]
 
-For a true distributed scheduler with Railway's worker dynos, you'd need a separate architecture (e.g., Bull/Redis queue). For this use case, in-process scheduling is fine.
+Runs immediately on startup[cite: 1]
 
-### Cost Considerations
+Restarts if the service restarts (harmless)[cite: 1]
 
-- PostgreSQL: Railway's free tier includes reasonable database limits
-- Node.js backend: Sleeps after 7 days of inactivity on free tier (your scheduler will pause)
-- Paid tier recommended for production token/credit system
+For a true distributed scheduler with Railway's worker dynos, you'd need a separate architecture (e.g., Bull/Redis queue). For this use case, in-process scheduling is fine.[cite: 1]
 
----
+Cost Considerations
+[cite: 1]
+PostgreSQL: Railway's free tier includes reasonable database limits[cite: 1]
 
-## Rollback
+Node.js backend: Sleeps after 7 days of inactivity on free tier (your scheduler will pause)[cite: 1]
 
-To revert to a previous deployment:
+Paid tier recommended for production token/credit system[cite: 1]
 
-```bash
+Rollback
+[cite: 1]
+To revert to a previous deployment:[cite: 1]
+
+Bash
 railway deployments
 # Find the deployment ID
 railway deploy --id <deployment-id>
-```
+Next Steps
+[cite: 1]
+  
+MD
++ 4
+Set up a custom domain (Railway supports this via Settings)[cite: 1]
 
----
+Configure backups for PostgreSQL (via Railway Dashboard)[cite: 1]
 
-## Next Steps
+Monitor logs regularly for errors[cite: 1]
 
-1. Set up a custom domain (Railway supports this via Settings)
-2. Configure backups for PostgreSQL (via Railway Dashboard)
-3. Monitor logs regularly for errors
-4. Consider migrating to Railway's paid tier for production
-
+Consider migrating to Railway's paid tier for production[cite: 1]
