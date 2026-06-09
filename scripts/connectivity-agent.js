@@ -101,12 +101,12 @@ async function main() {
 
   const backendUrl = normalizeOrigin(
     process.env.BACKEND_URL,
-    local ? "http://localhost:4000" : "http://localhost:4000"
+    local ? "http://localhost:8080" : "http://localhost:8080"
   );
   const frontendUrl = process.env.FRONTEND_URL
     ? normalizeOrigin(process.env.FRONTEND_URL, "")
     : local
-      ? "http://localhost:3000"
+      ? "http://localhost:5173"
       : "";
 
   console.log("[connectivity-agent] MeshBoard stack probe");

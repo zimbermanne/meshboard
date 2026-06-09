@@ -51,7 +51,7 @@ BACKEND_URL=https://meshboard-super-node.up.railway.app \
 FRONTEND_URL=https://your-frontend.up.railway.app \
 npm run connectivity
 
-# Local (backend :4000, frontend :3000)
+# Local (backend :8080, frontend Vite :5173)
 npm run connectivity:local
 ```
 
@@ -88,7 +88,7 @@ Maps to [`Frontend/src/components/StatusBanner.jsx`](Frontend/src/components/Sta
 
 1. Frontend service → set `BACKEND_URL` to backend public URL (no `/api`).
 2. Confirm backend is up: `curl https://<backend>/health`
-3. Local dev: `cd Backend && npm start` (port 4000), then `cd Frontend && npm run dev`
+3. Local dev: `cd Backend && npm start` (port 8080), then `cd Frontend && npm run dev` (port 5173)
 
 ### CORS errors in browser
 

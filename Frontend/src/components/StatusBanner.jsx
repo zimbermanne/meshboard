@@ -32,8 +32,8 @@ export function StatusBanner({ stats, statsError }) {
             </>
           ) : (
             <>
-              Local dev: start the backend with <code>cd Backend &amp;&amp; npm start</code> (port 4000),
-              then <code>cd Frontend &amp;&amp; npm run dev</code> (port 8080). Vite proxies{" "}
+              Local dev: start the backend with <code>cd Backend &amp;&amp; npm start</code> (port 8080),
+              then <code>cd Frontend &amp;&amp; npm run dev</code> (port 5173). Vite proxies{" "}
               <code>/api</code> automatically.
             </>
           )}

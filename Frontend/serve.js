@@ -2,7 +2,7 @@ const http = require("http");
 const fs   = require("fs");
 const path = require("path");
 
-const PORT    = parseInt(process.env.PORT || "3000", 10);
+const PORT    = parseInt(process.env.PORT || "8080", 10);
 const DIST    = path.join(__dirname, "dist");
 const DIST_OK = fs.existsSync(path.join(DIST, "index.html"));
 const TYPES   = {
@@ -55,7 +55,7 @@ function backendOrigin() {
     );
     return null;
   }
-  return "http://localhost:4000";
+  return "http://localhost:8080";
 }
 
 const BACKEND = backendOrigin();

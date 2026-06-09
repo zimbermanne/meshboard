@@ -27,9 +27,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/meshboard
-      BACKEND_URL: http://localhost:4000
-      FRONTEND_URL: http://localhost:3000
-      PORT: 4000
+      BACKEND_URL: http://localhost:8080
+      FRONTEND_URL: http://localhost:5173
+      PORT: 8080
 
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
           node index.js &
           echo $! > ../backend.pid
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:4000/health > /dev/null; then
+            if curl -sf http://localhost:8080/health > /dev/null; then
               echo "Backend ready"
               exit 0
             fi
@@ -64,8 +64,8 @@ jobs:
 
       - name: Backend connectivity checks
         run: |
-          curl -sf http://localhost:4000/api/health | grep -q '"database":"connected"'
-          BACKEND_URL=http://localhost:4000 npm run connectivity
+          curl -sf http://localhost:8080/api/health | grep -q '"database":"connected"'
+          BACKEND_URL=http://localhost:8080 npm run connectivity
 
       - name: Install Frontend dependencies
         working-directory: Frontend
@@ -78,13 +78,13 @@ jobs:
       - name: Start Frontend
         working-directory: Frontend
         env:
-          PORT: 3000
-          BACKEND_URL: http://localhost:4000
+          PORT: 5173
+          BACKEND_URL: http://localhost:8080
         run: |
           node serve.js &
           echo $! > ../frontend.pid
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:3000/health > /dev/null; then
+            if curl -sf http://localhost:5173/health > /dev/null; then
               echo "Frontend ready"
               exit 0
             fi

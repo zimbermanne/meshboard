@@ -28,10 +28,10 @@ curl -s https://<frontend>/api/health | jq .
 ## Local dev
 
 ```bash
-curl -s http://localhost:4000/health
-curl -s http://localhost:4000/api/health
-curl -s http://localhost:3000/health
-curl -s http://localhost:3000/api/health
+curl -s http://localhost:8080/health
+curl -s http://localhost:8080/api/health
+curl -s http://localhost:5173/health
+curl -s http://localhost:5173/api/health
 ```
 
 ## Connectivity agent

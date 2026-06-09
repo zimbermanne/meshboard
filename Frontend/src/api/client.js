@@ -3,7 +3,7 @@
 // Production (Railway): leave VITE_API_BASE_URL unset — serve.js proxies /api → BACKEND_URL.
 // Set BACKEND_URL on the Frontend Railway service (runtime, no rebuild needed).
 //
-// Local dev: leave unset; Vite proxies /api → http://localhost:4000
+// Local dev: leave unset; Vite proxies /api → http://localhost:8080
 
 const NODE_ID_RE = /^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 

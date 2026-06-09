@@ -5,7 +5,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "4000", 10);
+const PORT = parseInt(process.env.PORT || "8080", 10);
 
 // ── Liveness (Railway healthcheck) — no DB, no middleware ─────────────────
 app.get("/health", (req, res) => {
