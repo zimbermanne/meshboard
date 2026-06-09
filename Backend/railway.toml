@@ -1,5 +1,7 @@
 [build]
 builder = "nixpacks"
+# Backend has no compile step — override nixpacks auto-detect (which wrongly picks npm run dev)
+buildCommand = "echo Backend: no compile step"
 
 [deploy]
 startCommand = "node index.js"
