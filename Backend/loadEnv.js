@@ -4,9 +4,13 @@ const dotenv = require("dotenv");
 
 let loaded = false;
 
-/** Load .env from Backend/ or repo root (meshboard/.env). */
+/** Load .env from Backend/ or repo root — never on Railway (use service variables). */
 function loadEnv() {
   if (loaded) return;
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    loaded = true;
+    return;
+  }
   const candidates = [
     path.join(__dirname, ".env"),
     path.join(__dirname, "..", ".env"),

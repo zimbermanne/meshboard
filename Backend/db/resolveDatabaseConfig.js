@@ -49,7 +49,21 @@ function buildConnectionString({ host, port, user, password, database }) {
   return `postgresql://${encUser}:${encPass}@${host}:${port}/${database}`;
 }
 
+function isRailway() {
+  return Boolean(process.env.RAILWAY_ENVIRONMENT);
+}
+
 function railwayPgParts() {
+  // On Railway, only trust Postgres plugin vars — never local DB_* fallbacks.
+  if (isRailway()) {
+    return {
+      host: firstEnv("PGHOST", "POSTGRES_HOST"),
+      port: firstEnv("PGPORT", "POSTGRES_PORT") || "5432",
+      user: firstEnv("PGUSER", "POSTGRES_USER") || "postgres",
+      password: firstEnv("PGPASSWORD", "POSTGRES_PASSWORD"),
+      database: firstEnv("PGDATABASE", "POSTGRES_DB") || "railway",
+    };
+  }
   return {
     host: firstEnv("PGHOST", "POSTGRES_HOST", "DB_HOST"),
     port: firstEnv("PGPORT", "POSTGRES_PORT", "DB_PORT") || "5432",
@@ -57,6 +71,28 @@ function railwayPgParts() {
     password: firstEnv("PGPASSWORD", "POSTGRES_PASSWORD", "DB_PASSWORD"),
     database: firstEnv("PGDATABASE", "POSTGRES_DB", "DB_NAME") || "railway",
   };
+}
+
+function listPollutingDbVars() {
+  const bad = [];
+  const check = (key, value) => {
+    if (!value) return;
+    const host = parsePgUrl(value)?.host || value;
+    if (isPlaceholderHost(host) || isAppSelfHost(host)) bad.push(key);
+  };
+  for (const key of [
+    "PGHOST",
+    "POSTGRES_HOST",
+    "DB_HOST",
+    "DATABASE_URL",
+    "DATABASE_PRIVATE_URL",
+  ]) {
+    check(key, process.env[key]);
+  }
+  if (isRailway() && firstEnv("DB_HOST", "DB_NAME")) {
+    bad.push("DB_* (local dev only — remove from Railway Backend)");
+  }
+  return bad;
 }
 
 function isPlaceholderHost(host) {
@@ -197,6 +233,7 @@ function getDatabaseDiagnostics() {
     Boolean(process.env.RAILWAY_ENVIRONMENT) &&
     (rawPgHost === "localhost" || rawPgHost === "127.0.0.1");
 
+  const polluting = listPollutingDbVars();
   return {
     hasDatabaseUrl: Boolean(firstEnv("DATABASE_URL", "DATABASE_PRIVATE_URL")),
     hasDatabasePrivateUrl: Boolean(process.env.DATABASE_PRIVATE_URL),
@@ -208,13 +245,16 @@ function getDatabaseDiagnostics() {
     resolvedHost: cfg?.host || null,
     resolvedDatabase: cfg?.database || null,
     misconfiguredPgHost: selfHost || localhostOnRailway,
+    pollutingVariables: polluting.length ? polluting : null,
     railwayPrivateDomain: process.env.RAILWAY_PRIVATE_DOMAIN || null,
     hint: localhostOnRailway
-      ? "PGHOST=localhost is invalid on Railway. Reference PGHOST from the PostgreSQL service."
+      ? "Delete PGHOST=localhost on the Backend service. Variables → Add Reference → PostgreSQL → PGHOST and DATABASE_PRIVATE_URL."
       : selfHost
         ? "PGHOST points at the backend service. Reference Postgres variables from the PostgreSQL plugin."
         : !cfg
-          ? "Link PostgreSQL and set DATABASE_PRIVATE_URL or Postgres PGHOST/PGUSER/PGPASSWORD."
+          ? polluting.length
+            ? `Remove or replace on Railway Backend: ${polluting.join(", ")}. Then Add Reference from PostgreSQL (DATABASE_PRIVATE_URL, PGHOST, PGUSER, PGPASSWORD, PGDATABASE).`
+            : "Link PostgreSQL and set DATABASE_PRIVATE_URL or Postgres PGHOST/PGUSER/PGPASSWORD."
           : null,
   };
 }
@@ -226,4 +266,5 @@ module.exports = {
   isPlaceholderHost,
   isAppSelfHost,
   isLocalDev,
+  isRailway,
 };
