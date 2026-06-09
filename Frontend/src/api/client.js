@@ -78,7 +78,12 @@ async function req(method, path, body) {
       (/\/api\/nodes\/(stats|posts|tokens|payments|sync)/.test(url)
         ? " VITE_API_BASE_URL should end with /api, not /api/nodes."
         : "");
-    throw new Error((data.error || `HTTP ${res.status}`) + hint);
+    const detail =
+      data.error ||
+      data.message ||
+      (data.diagnostics?.hint ? `${data.diagnostics.hint}` : "") ||
+      `HTTP ${res.status}`;
+    throw new Error(detail + (hint && !String(detail).includes(hint) ? hint : ""));
   }
   return data;
 }

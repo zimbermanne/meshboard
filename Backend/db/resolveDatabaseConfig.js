@@ -1,8 +1,5 @@
 /**
  * Resolve PostgreSQL connection settings for Railway and local dev.
- *
- * Railway injects PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE from the Postgres plugin.
- * Never use RAILWAY_PRIVATE_DOMAIN — that is the *app* hostname, not Postgres.
  */
 require("../loadEnv")();
 
@@ -11,9 +8,12 @@ const PLACEHOLDER_DB_HOSTS = new Set([
   "host",
   "hostname",
   "your-host",
-  "localhost",
   "",
 ]);
+
+function isLocalDev() {
+  return process.env.NODE_ENV !== "production" && !process.env.RAILWAY_ENVIRONMENT;
+}
 
 function firstEnv(...keys) {
   for (const key of keys) {
@@ -51,7 +51,6 @@ function buildConnectionString({ host, port, user, password, database }) {
 
 function railwayPgParts() {
   return {
-    // Do NOT include RAILWAY_PRIVATE_DOMAIN — that points at this app, not Postgres.
     host: firstEnv("PGHOST", "POSTGRES_HOST", "DB_HOST"),
     port: firstEnv("PGPORT", "POSTGRES_PORT", "DB_PORT") || "5432",
     user: firstEnv("PGUSER", "POSTGRES_USER", "DB_USER") || "postgres",
@@ -65,10 +64,11 @@ function isPlaceholderHost(host) {
   const lower = host.toLowerCase();
   if (PLACEHOLDER_DB_HOSTS.has(lower)) return true;
   if (lower.endsWith(".your-host")) return true;
+  // localhost is valid locally, never valid on Railway containers
+  if ((lower === "localhost" || lower === "127.0.0.1") && !isLocalDev()) return true;
   return false;
 }
 
-/** PGHOST must not be this backend service's own Railway internal hostname. */
 function isAppSelfHost(host) {
   if (!host) return false;
   const h = host.toLowerCase();
@@ -114,10 +114,33 @@ function configFromParts({ host, port, user, password, database }, resolvedFrom)
   };
 }
 
+function localDevConfig(parts) {
+  const host = firstEnv("DB_HOST") || "localhost";
+  return {
+    host,
+    port: parseInt(firstEnv("DB_PORT") || "5432", 10),
+    database: firstEnv("DB_NAME") || "meshboard",
+    user: firstEnv("DB_USER") || "postgres",
+    password: firstEnv("DB_PASSWORD") || "",
+    ssl: false,
+    resolvedFrom: "DB_*",
+  };
+}
+
 function resolveDatabaseConfig() {
   const parts = railwayPgParts();
 
-  // 1. Prefer Railway internal URL, then public DATABASE_URL (valid hostname only)
+  // Local dev — prefer DATABASE_URL / DB_*; ignore Railway-style PGHOST pollution
+  if (isLocalDev()) {
+    const localUrl = firstEnv("DATABASE_URL", "DATABASE_PRIVATE_URL");
+    const parsed = parsePgUrl(localUrl);
+    if (parsed && (parsed.host === "localhost" || parsed.host === "127.0.0.1")) {
+      return configFromUrl(localUrl, parsed, "DATABASE_URL");
+    }
+    return localDevConfig(parts);
+  }
+
+  // Railway / production
   for (const [envKey, label] of [
     ["DATABASE_PRIVATE_URL", "DATABASE_PRIVATE_URL"],
     ["DATABASE_URL", "DATABASE_URL"],
@@ -136,7 +159,7 @@ function resolveDatabaseConfig() {
   let password = parts.password;
   let database = parts.database;
   let port = parts.port;
-  let host = isValidPgHost(parts.host) ? parts.host : "";
+  const host = isValidPgHost(parts.host) ? parts.host : "";
 
   if (parsed) {
     user = parsed.user || user;
@@ -148,26 +171,11 @@ function resolveDatabaseConfig() {
     }
   }
 
-  // 2. DATABASE_URL placeholder host (e.g. "base") + real PGHOST from Postgres plugin
   if (host) {
     return configFromParts(
       { host, port, user, password, database },
       parsed ? "DATABASE_URL+PGHOST" : "PGHOST"
     );
-  }
-
-  // 3. Local dev
-  if (process.env.NODE_ENV !== "production") {
-    const localHost = parts.host || "localhost";
-    return {
-      host: localHost,
-      port: parseInt(parts.port || "5432", 10),
-      database: parts.database || "meshboard",
-      user: parts.user || "postgres",
-      password: parts.password || "",
-      ssl: false,
-      resolvedFrom: "DB_*",
-    };
   }
 
   return null;
@@ -185,6 +193,9 @@ function getDatabaseDiagnostics() {
   const parts = railwayPgParts();
   const rawPgHost = parts.host;
   const selfHost = isAppSelfHost(rawPgHost);
+  const localhostOnRailway =
+    Boolean(process.env.RAILWAY_ENVIRONMENT) &&
+    (rawPgHost === "localhost" || rawPgHost === "127.0.0.1");
 
   return {
     hasDatabaseUrl: Boolean(firstEnv("DATABASE_URL", "DATABASE_PRIVATE_URL")),
@@ -195,18 +206,16 @@ function getDatabaseDiagnostics() {
     resolved: Boolean(cfg),
     resolvedFrom: cfg?.resolvedFrom || null,
     resolvedHost: cfg?.host || null,
-    resolvedDatabase: cfg?.resolvedDatabase || cfg?.database || null,
-    misconfiguredPgHost: selfHost,
+    resolvedDatabase: cfg?.database || null,
+    misconfiguredPgHost: selfHost || localhostOnRailway,
     railwayPrivateDomain: process.env.RAILWAY_PRIVATE_DOMAIN || null,
-    placeholderHostAccepted:
-      Boolean(parsePgUrl(firstEnv("DATABASE_URL"))?.host) &&
-      isPlaceholderHost(parsePgUrl(firstEnv("DATABASE_URL"))?.host) &&
-      isValidPgHost(rawPgHost),
-    hint: selfHost
-      ? "PGHOST points at the backend service. On Railway, reference PGHOST from the PostgreSQL plugin — not RAILWAY_PRIVATE_DOMAIN."
-      : !cfg
-        ? "Link PostgreSQL to this service and reference DATABASE_PRIVATE_URL or PGHOST from Postgres."
-        : null,
+    hint: localhostOnRailway
+      ? "PGHOST=localhost is invalid on Railway. Reference PGHOST from the PostgreSQL service."
+      : selfHost
+        ? "PGHOST points at the backend service. Reference Postgres variables from the PostgreSQL plugin."
+        : !cfg
+          ? "Link PostgreSQL and set DATABASE_PRIVATE_URL or Postgres PGHOST/PGUSER/PGPASSWORD."
+          : null,
   };
 }
 
@@ -216,4 +225,5 @@ module.exports = {
   getDatabaseDiagnostics,
   isPlaceholderHost,
   isAppSelfHost,
+  isLocalDev,
 };

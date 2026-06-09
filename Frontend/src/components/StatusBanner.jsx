@@ -7,7 +7,7 @@ export function StatusBanner({ stats, statsError }) {
   if (statsError) {
     const isDb =
       health?.database === "disconnected" ||
-      /database|PostgreSQL|PGHOST/i.test(statsError);
+      /database|PostgreSQL|PGHOST|not configured|does not exist|migrate/i.test(statsError);
     const isBackendConfig =
       /BACKEND_URL|ENOTFOUND base|placeholder|Backend unreachable/i.test(statsError);
     return (

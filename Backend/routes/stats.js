@@ -1,8 +1,18 @@
 const router = require("express").Router();
 const pool = require("../db/pool");
+const { hasDatabaseConfig, getDatabaseDiagnostics } = require("../db/resolveDatabaseConfig");
 
 // GET /api/stats — dashboard overview (also useful for mobile status screens)
 router.get("/", async (req, res) => {
+  if (!hasDatabaseConfig()) {
+    const diagnostics = getDatabaseDiagnostics();
+    return res.status(503).json({
+      error: "Database not configured",
+      hint: diagnostics.hint,
+      diagnostics,
+    });
+  }
+
   try {
     const [counts, revenue] = await Promise.all([
       pool.query(`
@@ -44,7 +54,15 @@ router.get("/", async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const message = err.message || err.code || "Database query failed";
+    const status = /does not exist|DB_NOT_CONFIGURED|not configured/i.test(message) ? 503 : 500;
+    res.status(status).json({
+      error: message,
+      hint:
+        status === 503
+          ? "Run npm run migrate in Backend/ or POST /api/setup/migrate on Railway."
+          : undefined,
+    });
   }
 });
 
