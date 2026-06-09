@@ -3,18 +3,39 @@
 // Production (Railway): leave VITE_API_BASE_URL unset — serve.js proxies /api → BACKEND_URL.
 // Set BACKEND_URL on the Frontend Railway service (runtime, no rebuild needed).
 //
-// Local dev: leave unset; Vite proxies /api → http://localhost:4000
+// Local dev: leave unset; Vite on :5173 proxies /api → http://localhost:8080
 
 const NODE_ID_RE = /^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+const PLACEHOLDER_HOSTS = new Set(["base", "backend", "host"]);
 
 function normalizeApiBase(raw) {
-  let base = (raw || "/api").trim().replace(/\/+$/, "");
-  // Common mistake: .../api/nodes — strips trailing resource segment
-  base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
-  if (!base.endsWith("/api")) {
-    if (base === "" || base === "/") return "/api";
-    return `${base}/api`;
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "/api";
+
+  if (trimmed.startsWith("/")) {
+    let base = trimmed.replace(/\/+$/, "");
+    base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
+    if (!base.endsWith("/api")) {
+      if (base === "" || base === "/") return "/api";
+      return `${base}/api`;
+    }
+    return base;
   }
+
+  if (!/^https?:\/\//i.test(trimmed)) {
+    console.warn("[api] Ignoring invalid VITE_API_BASE_URL — use /api or https://host.up.railway.app/api");
+    return "/api";
+  }
+  try {
+    const { hostname } = new URL(trimmed);
+    if (PLACEHOLDER_HOSTS.has(hostname.toLowerCase())) return "/api";
+  } catch {
+    return "/api";
+  }
+
+  let base = trimmed.replace(/\/+$/, "");
+  base = base.replace(/\/(nodes|posts|tokens|payments|sync|stats)$/i, "");
+  if (!base.endsWith("/api")) return `${base}/api`;
   return base;
 }
 

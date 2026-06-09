@@ -5,7 +5,11 @@ export function StatusBanner({ stats, statsError }) {
   const { data: health } = useApi(() => api.health());
 
   if (statsError) {
-    const isDb = health?.database === "disconnected";
+    const isDb =
+      health?.database === "disconnected" ||
+      /database|PostgreSQL|PGHOST/i.test(statsError);
+    const isBackendConfig =
+      /BACKEND_URL|ENOTFOUND base|placeholder|Backend unreachable/i.test(statsError);
     return (
       <div className="error-msg" style={{ marginBottom: 20 }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>
@@ -15,15 +19,21 @@ export function StatusBanner({ stats, statsError }) {
         <div style={{ color: "var(--muted)", lineHeight: 1.6 }}>
           {isDb ? (
             <>
-              The API is running but PostgreSQL is unreachable. Check <code>DATABASE_URL</code> on Railway,
-              or locally run PostgreSQL and set <code>DB_*</code> in <code>.env</code>, then{" "}
-              <code>npm run migrate</code> in <code>Backend/</code>.
+              The API is running but PostgreSQL is unreachable. On Railway, link Postgres and reference{" "}
+              <code>DATABASE_PRIVATE_URL</code> or <code>PGHOST</code> from the PostgreSQL service.
+              Locally: set <code>DB_*</code> in <code>.env</code>, then <code>npm run migrate</code> in{" "}
+              <code>Backend/</code>.
+            </>
+          ) : isBackendConfig ? (
+            <>
+              Railway Frontend: set <code>BACKEND_URL=https://meshboard-super-node.up.railway.app</code>{" "}
+              (no <code>/api</code> suffix). Remove placeholder values like <code>base</code>.
             </>
           ) : (
             <>
-              Local dev: start the backend with <code>cd Backend &amp;&amp; npm start</code> (port 4000),
-              then <code>cd Frontend &amp;&amp; npm run dev</code> (port 3000). Vite proxies <code>/api</code> automatically.
-              Railway: set <code>BACKEND_URL</code> on the Frontend service.
+              Local dev: <code>cd Backend &amp;&amp; npm start</code> (port 8080), then{" "}
+              <code>cd Frontend &amp;&amp; npm run dev</code> (port 5173). Vite proxies{" "}
+              <code>/api</code> to the backend automatically.
             </>
           )}
         </div>
