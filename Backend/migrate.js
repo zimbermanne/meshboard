@@ -3,7 +3,8 @@ const pool = require("./db/pool");
 
 async function migrate() {
   // Gracefully handle unattached database URLs during provisioning states
-  if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
+  const { hasDatabaseConfig } = require("./db/resolveDatabaseConfig");
+  if (!hasDatabaseConfig()) {
     console.warn("⚠️ [migration] Database environment variables missing. Skipping migration execution.");
     return;
   }

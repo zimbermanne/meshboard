@@ -51,7 +51,18 @@ const safeRequire = (path) => {
 
 // GET /api/health — DB connectivity (dashboard diagnostics)
 app.get("/api/health", async (req, res) => {
+  const { getDatabaseDiagnostics, hasDatabaseConfig } = require("./db/resolveDatabaseConfig");
+  const diagnostics = getDatabaseDiagnostics();
   try {
+    if (!hasDatabaseConfig()) {
+      return res.status(503).json({
+        status: "degraded",
+        database: "disconnected",
+        error: "PostgreSQL not configured — link Postgres on Railway (PGHOST + PGUSER + PGPASSWORD).",
+        diagnostics,
+        supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
+      });
+    }
     const pool = require("./db/pool");
     await pool.query("SELECT 1");
     res.json({
@@ -59,17 +70,22 @@ app.get("/api/health", async (req, res) => {
       database: "connected",
       supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
       time: new Date().toISOString(),
+      dbHost: diagnostics.resolvedHost,
+      resolvedFrom: diagnostics.resolvedFrom,
     });
   } catch (err) {
     res.status(503).json({
       status: "degraded",
       database: "disconnected",
       error: err.message || "Database unreachable",
+      diagnostics,
+      setup: "GET /api/setup/status then POST /api/setup/migrate after PG is linked",
       supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",
     });
   }
 });
 
+app.use("/api/setup", safeRequire("./routes/setup"));
 app.use("/api/nodes", safeRequire("./routes/nodes"));
 app.use("/api/posts", safeRequire("./routes/posts"));
 app.use("/api/tokens", safeRequire("./routes/tokens"));
@@ -103,17 +119,23 @@ server.on("error", (err) => {
 });
 
 function bootBackground() {
-  if (!process.env.DATABASE_URL) {
-    console.warn("⚠️ [startup] DATABASE_URL is not set — link PostgreSQL in Railway or verify environment variables.");
+  const { hasDatabaseConfig, getDatabaseDiagnostics } = require("./db/resolveDatabaseConfig");
+  const diag = getDatabaseDiagnostics();
+  if (!hasDatabaseConfig()) {
+    console.warn("⚠️ [startup] PostgreSQL not configured — link Postgres on Railway (PGHOST, PGUSER, PGPASSWORD, PGDATABASE).");
+  } else {
+    console.log(`[startup] DB target host=${diag.resolvedHost} db=${diag.resolvedDatabase} via=${diag.resolvedFrom}`);
   }
 
-  if (process.env.RUN_MIGRATIONS === "true") {
+  const shouldMigrate =
+    process.env.RUN_MIGRATIONS === "true" || process.env.AUTO_MIGRATE === "true";
+  if (shouldMigrate && hasDatabaseConfig()) {
     console.log("[startup] Initiating migration check...");
     require("./migrate")()
       .then(() => console.log("✓ [startup] Migrations verified and applied seamlessly"))
       .catch((err) => {
         console.error("✗ [startup] Migration processing encountered a structural roadblock:", err.message);
-        console.info("💡 Keeping server alive so health checks pass for administrative container access.");
+        console.info("💡 POST /api/setup/migrate after linking Postgres, or set RUN_MIGRATIONS=true.");
       });
   }
 

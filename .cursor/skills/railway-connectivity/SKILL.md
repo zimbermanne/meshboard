@@ -26,7 +26,8 @@ Two Railway services plus linked PostgreSQL:
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `DATABASE_URL` | Yes | Auto-filled when PostgreSQL plugin is linked |
+| `DATABASE_URL` | Optional | May contain placeholder host `base` — backend uses `PGHOST` when Postgres is linked |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Yes | Injected when PostgreSQL plugin is linked to Backend |
 | `ALLOWED_ORIGINS` | Yes (prod) | Frontend Railway URL, comma-separated |
 | `SUPERNODE_ID` | Optional | Shown in health responses |
 | `RUN_MIGRATIONS` | First deploy | Set `true` once, or run `npm run migrate` in Railway shell |
@@ -109,11 +110,12 @@ Before testing mobile, ensure `GET /api/health` returns `database: connected`. S
 
 ## Post-deploy checklist
 
-1. Link PostgreSQL to Backend on Railway.
-2. Set `ALLOWED_ORIGINS` on Backend.
-3. Set `BACKEND_URL` on Frontend.
-4. Run migrations if needed.
-5. `npm run connectivity` with production URLs.
+1. Link PostgreSQL to Backend on Railway (reference `PGHOST` + credentials on Backend service).
+2. Deploy backend — `DATABASE_URL` with host `base` is OK if `PGHOST` is set.
+3. `POST https://meshboard-super-node.up.railway.app/api/setup/migrate` or `RUN_MIGRATIONS=true`.
+4. Set `ALLOWED_ORIGINS` on Backend to Frontend URL.
+5. Set `BACKEND_URL=https://meshboard-super-node.up.railway.app` on Frontend.
+6. `npm run connectivity` with production URLs.
 6. Open dashboard — StatusBanner should not show connection errors.
 
 ## Manual curl debugging

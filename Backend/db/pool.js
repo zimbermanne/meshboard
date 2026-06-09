@@ -1,26 +1,53 @@
 const { Pool } = require("pg");
+const { resolveDatabaseConfig } = require("./resolveDatabaseConfig");
 require("../loadEnv")();
 
+const cfg = resolveDatabaseConfig();
+
+if (!cfg) {
+  console.error(
+    "[db] No PostgreSQL configuration found. Link Postgres on Railway or set PGHOST/PGUSER/PGPASSWORD/PGDATABASE."
+  );
+}
+
 const pool = new Pool(
-  process.env.DATABASE_URL
-    ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
-      }
+  cfg
+    ? cfg.connectionString
+      ? {
+          connectionString: cfg.connectionString,
+          ssl: cfg.ssl,
+          max: 10,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+        }
+      : {
+          host: cfg.host,
+          port: parseInt(cfg.port, 10),
+          database: cfg.database,
+          user: cfg.user,
+          password: cfg.password,
+          ssl: cfg.ssl,
+          max: 10,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+        }
     : {
-        host: process.env.DB_HOST || "localhost",
-        port: parseInt(process.env.DB_PORT || "5432", 10),
-        database: process.env.DB_NAME || "meshboard",
-        user: process.env.DB_USER || "postgres",
-        password: process.env.DB_PASSWORD || "",
+        host: "localhost",
+        port: 5432,
+        database: "meshboard",
+        user: "postgres",
+        password: "",
         max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
       }
 );
+
+if (cfg) {
+  console.log(
+    `[db] Pool ready — host=${cfg.host} db=${cfg.database} via=${cfg.resolvedFrom}`
+  );
+}
 
 pool.on("error", (err) => {
   console.error("Unexpected PostgreSQL pool error:", err);

@@ -9,6 +9,7 @@ How the Android client and `https://meshboard-super-node.up.railway.app` stay in
 Mobile sync depends on a working backend and PostgreSQL connection. Before testing the Android app:
 
 1. `GET /api/health` on the backend must return `"database": "connected"`.
+   Setup: `GET /api/setup/status` then `POST /api/setup/migrate` after Postgres is linked on Railway.
 2. After Railway deploy, run from the repo root:
    ```bash
    BACKEND_URL=https://meshboard-super-node.up.railway.app npm run connectivity
