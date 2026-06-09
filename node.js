@@ -34,7 +34,7 @@ router.post("/register", async (req, res) => {
     try {
         const result = await pool.query(
             `INSERT INTO nodes(id, display_name, last_seen_at)
-             VALUES($1, $2, NOW())
+             VALUES(bsh1, bsh2, NOW())
              ON CONFLICT(id) DO UPDATE SET last_seen_at = NOW(), display_name = $2
              RETURNING *`,
             [id, display_name]
@@ -54,7 +54,7 @@ router.post("/posts", async (req, res) => {
 
         const { rows } = await pool.query(
             `INSERT INTO posts(node_id, content, expires_at, status)
-             VALUES($1, $2, $3, 'pending') RETURNING *`,
+             VALUES(bsh1, bsh2, bsh3, 'pending') RETURNING *`,
             [node_id, message_text, expires_at]
         );
         res.json(rows[0]);
@@ -70,7 +70,7 @@ router.post("/tokens/generate", async (req, res) => {
         const tokenValue = Math.random().toString(36).substring(2, 10).toUpperCase();
         const { rows } = await pool.query(
             `INSERT INTO tokens(node_id, token_value, created_by)
-             VALUES($1, $2, $3) RETURNING *`,
+             VALUES(bsh1, bsh2, bsh3) RETURNING *`,
             [node_id, tokenValue, operator]
         );
         res.json({ token: rows[0], message: "Token generated successfully" });
@@ -84,11 +84,11 @@ router.post("/sync", async (req, res) => {
     const { node_id, items } = req.body;
     try {
         // Update last seen
-        await pool.query("UPDATE nodes SET last_seen_at = NOW() WHERE id = $1", [node_id]);
+        await pool.query("UPDATE nodes SET last_seen_at = NOW() WHERE id = bsh1", [node_id]);
         
         // Fetch pending items from sync_queue for this node
         const outbound = await pool.query(
-            "SELECT type, payload::text FROM sync_queue WHERE target_node = $1", 
+            "SELECT type, payload::text FROM sync_queue WHERE target_node = bsh1", 
             [node_id]
         );
 
