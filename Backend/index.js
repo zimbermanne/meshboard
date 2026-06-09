@@ -5,7 +5,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "4000", 10);
+const PORT = parseInt(process.env.PORT || "8080", 10);
 
 // ── Liveness (Railway healthcheck) — no DB, no middleware ─────────────────
 app.get("/health", (req, res) => {
@@ -74,10 +74,14 @@ app.get("/api/health", async (req, res) => {
       resolvedFrom: diagnostics.resolvedFrom,
     });
   } catch (err) {
+    const hint = diagnostics.misconfiguredPgHost
+      ? "PGHOST is the backend hostname — reference Postgres variables from the PostgreSQL Railway service."
+      : diagnostics.hint;
     res.status(503).json({
       status: "degraded",
       database: "disconnected",
       error: err.message || "Database unreachable",
+      hint,
       diagnostics,
       setup: "GET /api/setup/status then POST /api/setup/migrate after PG is linked",
       supernode: process.env.SUPERNODE_ID || "SUPERNODE-DEV",

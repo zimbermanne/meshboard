@@ -31,7 +31,10 @@ router.get("/status", async (req, res) => {
     hint:
       database === "connected"
         ? "Run POST /api/setup/migrate if tables are missing."
-        : "Set PGHOST from linked Postgres, or fix DATABASE_URL. Placeholder host 'base' is OK when PGHOST is set.",
+        : diagnostics.misconfiguredPgHost
+          ? "PGHOST must come from the PostgreSQL service (e.g. postgres.railway.internal), not the backend."
+          : diagnostics.hint ||
+            "Link PostgreSQL on Railway and reference DATABASE_PRIVATE_URL or PGHOST from Postgres.",
   });
 });
 
