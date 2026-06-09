@@ -137,15 +137,20 @@ async function main() {
   if (frontendUrl) {
     rows.push(
       await checkHttp("Frontend liveness", `${frontendUrl}/health`, ({ ok, data }) => {
-        if (!ok && data.status === "degraded") {
-          return data.database ? `degraded: database=${data.database}` : "frontend degraded";
-        }
         if (!ok) return `Expected HTTP 2xx, got failure`;
+        if (data.dist === false) return "Frontend dist/ build missing";
         if (data.status !== "ok" && data.status !== "degraded") {
           return `Unexpected status ${JSON.stringify(data.status)}`;
         }
-        if (data.dist === false) return "Frontend dist/ build missing";
         return null;
+      })
+    );
+
+    rows.push(
+      await checkHttp("Frontend readiness", `${frontendUrl}/health/ready`, ({ ok, data }) => {
+        if (data.status === "ok" && data.database === "connected") return null;
+        if (!ok && data.error) return data.error;
+        return `Expected ready backend (database connected), got ${JSON.stringify(data.database)}`;
       })
     );
 

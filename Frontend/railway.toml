@@ -3,7 +3,8 @@ builder = "nixpacks"
 buildCommand = "npm run build"
 
 [deploy]
-startCommand = "node serve.js"
+# Rebuild dist at start — Nixpacks final COPY can omit gitignored Frontend/dist/
+startCommand = "npm run build && node serve.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"

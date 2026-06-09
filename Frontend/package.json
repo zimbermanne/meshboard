@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node serve.js"
+    "start": "node serve.js",
+    "start:prod": "npm run build && node serve.js"
   },
   "dependencies": {
     "react": "^18.2.0",

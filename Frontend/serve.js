@@ -93,7 +93,36 @@ const server = http.createServer(async (req, res) => {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath !== "/" && urlPath.endsWith("/")) urlPath = urlPath.slice(0, -1);
 
+  // Liveness — Railway healthcheck must pass when the static server is up (not when backend is down).
   if (urlPath === "/health") {
+    if (!DIST_OK) {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", dist: false, error: "Build missing — run npm run build" }));
+      return;
+    }
+    const probe = await probeBackendHealth();
+    const backendOk = probe.reachable && probe.database === "connected";
+    const body = {
+      status: backendOk ? "ok" : "degraded",
+      dist: DIST_OK,
+      backend: BACKEND,
+      backendReachable: probe.reachable,
+      database: probe.database,
+      ready: backendOk,
+    };
+    if (probe.error) body.error = probe.error;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
+    return;
+  }
+
+  // Readiness — full stack (frontend proxy + backend DB); used by connectivity agent.
+  if (urlPath === "/health/ready") {
+    if (!DIST_OK) {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", dist: false }));
+      return;
+    }
     const probe = await probeBackendHealth();
     const backendOk = probe.reachable && probe.database === "connected";
     const body = {

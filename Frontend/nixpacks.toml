@@ -1,4 +1,6 @@
-# Build in nixpacks; start only in railway.toml (must differ from buildCommand)
+# Node-only — avoid Caddy static provider; dist rebuilt at start (see railway.toml)
+providers = ["node"]
+
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
@@ -7,3 +9,6 @@ cmds = ["npm install --include=dev"]
 
 [phases.build]
 cmds = ["npm run build"]
+
+[start]
+cmd = "npm run build && node serve.js"
