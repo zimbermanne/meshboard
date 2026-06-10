@@ -45,8 +45,8 @@ export default function Tokens() {
   return (
     <>
       <style>{sharedCss}{`
-        .token-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:20px;margin-bottom:20px;}
-        .token-display{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent);letter-spacing:2px;padding:14px 16px;background:rgba(0,230,118,.06);border:1px dashed rgba(0,230,118,.3);border-radius:4px;margin:12px 0;text-align:center;}
+        .token-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+        .token-display{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent);letter-spacing:1px;padding:14px 16px;background:var(--accent-soft);border:1px dashed rgba(5,150,105,.25);border-radius:8px;margin:12px 0;text-align:center;}
       `}</style>
 
       <div className="section-head"><span className="section-title">Token Management</span></div>

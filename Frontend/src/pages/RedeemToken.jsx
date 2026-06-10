@@ -38,7 +38,7 @@ export default function RedeemToken() {
   return (
     <>
       <style>{sharedCss}{`
-        .token-result{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent);padding:14px;background:rgba(0,230,118,.06);border:1px dashed rgba(0,230,118,.3);border-radius:4px;text-align:center;margin-top:12px;}
+        .token-result{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent);padding:14px;background:var(--accent-soft);border:1px dashed rgba(5,150,105,.25);border-radius:8px;text-align:center;margin-top:12px;}
       `}</style>
       <div className="section-head">
         <span className="section-title">Redeem Credit Token</span>
@@ -55,7 +55,7 @@ export default function RedeemToken() {
       {error && <div className="error-msg">{error}</div>}
 
       {result && (
-        <div className="card" style={{ marginBottom: 20, borderColor: "rgba(0,230,118,.3)" }}>
+        <div className="card" style={{ marginBottom: 20, borderColor: "rgba(5,150,105,.25)" }}>
           <div className="card-label">Redeemed</div>
           <div className="token-result">${parseFloat(result.amount_credited).toFixed(2)} credited</div>
           <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--mono)", marginTop: 8, textAlign: "center" }}>

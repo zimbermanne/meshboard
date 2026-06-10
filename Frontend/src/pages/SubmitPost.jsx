@@ -67,7 +67,7 @@ export default function SubmitPost() {
       {error && <div className="error-msg">{error}</div>}
 
       {success && (
-        <div className="card" style={{ marginBottom: 20, borderColor: "rgba(0,230,118,.3)" }}>
+        <div className="card" style={{ marginBottom: 20, borderColor: "rgba(5,150,105,.25)" }}>
           <div className="card-label">Submitted</div>
           <div style={{ fontSize: 13, marginTop: 8 }}>
             Post <span className="mono">{success.id}</span> is pending admin approval.

@@ -51,7 +51,7 @@ export default function UserProfile() {
 
       {error && <div className="error-msg">{error}</div>}
       {saved && (
-        <div className="alert" style={{ color: "var(--accent)", borderColor: "rgba(0,230,118,.3)", background: "rgba(0,230,118,.06)" }}>
+        <div className="alert" style={{ color: "var(--accent)", borderColor: "rgba(5,150,105,.25)", background: "var(--accent-soft)" }}>
           Profile saved.
         </div>
       )}

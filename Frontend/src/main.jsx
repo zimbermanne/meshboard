@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "./styles/global.css";
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 
@@ -9,7 +10,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 40, color: "#ff5252", fontFamily: "monospace", background: "#0d0f0e", minHeight: "100vh" }}>
+        <div style={{ padding: 40, color: "#e11d48", fontFamily: "Inter, sans-serif", background: "#fcfbf9", minHeight: "100vh" }}>
           Dashboard error: {this.state.error.message}
         </div>
       );
