@@ -126,10 +126,19 @@ async function migrate() {
         phone         TEXT NOT NULL,
         email         TEXT NOT NULL,
         password_hash TEXT NOT NULL,
+        role          TEXT NOT NULL DEFAULT 'user',
+        node_id       TEXT REFERENCES nodes(id) ON DELETE SET NULL,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (email),
         UNIQUE (phone)
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+    `);
+    await client.query(`
+      ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL;
     `);
 
     // ── Sync queue ─────────────────────────────────────────────────────────

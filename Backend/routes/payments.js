@@ -1,8 +1,8 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
-router.use(requireAuth);
+router.use(requireAuth, requireAdmin);
 
 // GET /api/payments — full log with optional filters
 router.get("/", async (req, res) => {

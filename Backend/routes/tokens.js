@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, validationResult } = require("express-validator");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -15,8 +15,8 @@ function generateTokenId(nodeId) {
   return `TXN-${seg()}-${nodePart}-${seg()}`;
 }
 
-// GET /api/tokens — all tokens with optional filters
-router.get("/", requireAuth, async (req, res) => {
+// GET /api/tokens — all tokens with optional filters (admin)
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { node_id, status } = req.query;
     let sql = `
@@ -36,10 +36,11 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/tokens/generate — operator creates a credit token
+// POST /api/tokens/generate — operator creates a credit token (admin)
 router.post(
   "/generate",
   requireAuth,
+  requireAdmin,
   body("node_id").matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/),
   body("amount").isFloat({ min: 1, max: 1000 }),
   body("operator").trim().notEmpty(),
@@ -87,7 +88,23 @@ router.post(
   }
 );
 
-// POST /api/tokens/redeem — called by client node
+// POST /api/tokens/revoke/:id — cancel a pending credit token (admin)
+router.post("/revoke/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "UPDATE tokens SET status='revoked' WHERE id=$1 AND status='pending' RETURNING *",
+      [req.params.id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: "Token not found or not revocable" });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/tokens/redeem — called by client node or web user
 router.post(
   "/redeem",
   body("token_id").trim().notEmpty(),

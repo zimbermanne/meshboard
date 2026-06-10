@@ -11,6 +11,20 @@ export default function Tokens() {
   const [generated, setGenerated] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError]   = useState(null);
+  const [revoking, setRevoking]     = useState({});
+
+  async function revoke(id) {
+    if (!confirm(`Revoke token ${id}?`)) return;
+    setRevoking(r => ({ ...r, [id]: true }));
+    try {
+      await api.revokeToken(id);
+      reload();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setRevoking(r => ({ ...r, [id]: false }));
+    }
+  }
 
   async function generate() {
     if (!form.node_id || !form.amount) return setFormError("Node and amount are required");
@@ -86,10 +100,10 @@ export default function Tokens() {
             <button className="btn btn-ghost" onClick={reload} style={{fontSize:11}}>↺ Refresh</button>
           </div>
           <table>
-            <thead><tr><th>Token ID</th><th>Node</th><th>Amount</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>
+            <thead><tr><th>Token ID</th><th>Node</th><th>Amount</th><th>Created</th><th>Expires</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {tokens.length === 0 && (
-                <tr><td colSpan={6} style={{color:"var(--muted)",fontFamily:"var(--mono)",fontSize:12}}>No tokens yet — generate one above</td></tr>
+                <tr><td colSpan={7} style={{color:"var(--muted)",fontFamily:"var(--mono)",fontSize:12}}>No tokens yet — generate one above</td></tr>
               )}
               {tokens.map(t => (
                 <tr key={t.id}>
@@ -99,6 +113,13 @@ export default function Tokens() {
                   <td><span className="mono" style={{fontSize:11}}>{new Date(t.created_at).toLocaleString()}</span></td>
                   <td><span className="mono" style={{fontSize:11}}>{new Date(t.expires_at).toLocaleString()}</span></td>
                   <td><span className={`badge badge-${t.status}`}>{t.status}</span></td>
+                  <td>
+                    {t.status === "pending" && (
+                      <button className="btn btn-reject" style={{ fontSize: 11 }} disabled={revoking[t.id]} onClick={() => revoke(t.id)}>
+                        {revoking[t.id] ? "…" : "Revoke"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

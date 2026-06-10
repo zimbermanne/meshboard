@@ -86,6 +86,9 @@ async function req(method, path, body, { auth = true } = {}) {
     if (res.status === 401 && auth) {
       throw new Error(data.error || "Please log in again.");
     }
+    if (res.status === 403) {
+      throw new Error(data.error || "You do not have permission for this action.");
+    }
     const hint =
       data.hint ||
       (/\/api\/nodes\/(stats|posts|tokens|payments|sync)/.test(url)
@@ -106,6 +109,7 @@ export const api = {
   register:       (body)       => req("POST",  "/auth/register", body, { auth: false }),
   login:          (body)       => req("POST",  "/auth/login", body, { auth: false }),
   me:             ()           => req("GET",   "/auth/me"),
+  updateProfile:  (body)       => req("PATCH", "/auth/profile", body),
 
   stats:          ()           => req("GET",   "/stats"),
 
@@ -117,22 +121,29 @@ export const api = {
   reactivateNode: (id)         => req("POST",  `/nodes/${id}/reactivate`),
 
   posts:          (status)     => req("GET",   `/posts${status ? `?status=${status}` : ""}`),
+  myPosts:        ()           => req("GET",   "/posts/mine"),
   activePosts:    ()           => req("GET",   "/posts/active"),
   submitPost:     (body)       => req("POST",  "/posts", body),
   approvePost:    (id, op)     => req("POST",  `/posts/${id}/approve`, { operator: op }),
   rejectPost:     (id, reason) => req("POST",  `/posts/${id}/reject`, { reason }),
+  renewPost:      (id)         => req("POST",  `/posts/${id}/renew`),
   expirePost:     (id)         => req("POST",  `/posts/${id}/expire`),
   deletePost:     (id, reason) => req("POST",  `/posts/${id}/delete`, { reason }),
 
   tokens:         (params)     => req("GET",   `/tokens${params ? "?" + new URLSearchParams(params) : ""}`),
   generateToken:  (body)       => req("POST",  "/tokens/generate", body),
-  redeemToken:    (body)       => req("POST",  "/tokens/redeem", body),
+  revokeToken:    (id)         => req("POST",  `/tokens/revoke/${id}`),
+  redeemToken:    (body)       => req("POST",  "/tokens/redeem", body, { auth: false }),
 
   payments:       (params)     => req("GET",   `/payments${params ? "?" + new URLSearchParams(params) : ""}`),
   paymentStats:   ()           => req("GET",   "/payments/stats"),
 
   syncStatus:     ()           => req("GET",   "/sync/status"),
   sync:           (body)       => req("POST",  "/sync", body),
+
+  adminUsers:     ()           => req("GET",   "/admin/users"),
+  updateUser:     (id, body)   => req("PATCH", `/admin/users/${id}`, body),
+  deleteUser:     (id)         => req("DELETE", `/admin/users/${id}`),
 };
 
 export { NODE_ID_RE, normalizeApiBase };

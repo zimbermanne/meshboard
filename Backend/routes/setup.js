@@ -38,6 +38,23 @@ router.get("/status", async (req, res) => {
   });
 });
 
+// POST /api/setup/seed-admin — create first admin (requires SETUP_SECRET header)
+router.post("/seed-admin", async (req, res) => {
+  const secret = process.env.SETUP_SECRET;
+  if (!secret || req.headers["x-setup-secret"] !== secret) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  if (!hasDatabaseConfig()) {
+    return res.status(503).json({ error: "Database not configured" });
+  }
+  try {
+    await require("../seed-admin")();
+    res.json({ status: "ok", message: "Admin account ready" });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "seed-admin failed" });
+  }
+});
+
 // POST /api/setup/migrate — apply schema (idempotent)
 router.post("/migrate", async (req, res) => {
   if (!hasDatabaseConfig()) {

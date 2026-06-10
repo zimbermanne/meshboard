@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, param, query, validationResult } = require("express-validator");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -26,8 +26,8 @@ function requireNodeId(req, res, next) {
   next();
 }
 
-// GET /api/nodes — list all nodes (searchable)
-router.get("/", requireAuth, async (req, res) => {
+// GET /api/nodes — list all nodes (searchable, admin)
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { search } = req.query;
     let sql = `
@@ -81,8 +81,8 @@ router.post(
   }
 );
 
-// GET /api/nodes/:id — single node with full history
-router.get("/:id", requireAuth, requireNodeId, async (req, res) => {
+// GET /api/nodes/:id — single node with full history (admin)
+router.get("/:id", requireAuth, requireAdmin, requireNodeId, async (req, res) => {
   try {
     const { id } = req.params;
     const nodeRes = await pool.query("SELECT * FROM nodes WHERE id = $1", [id]);
@@ -111,6 +111,7 @@ router.get("/:id", requireAuth, requireNodeId, async (req, res) => {
 router.patch(
   "/:id/display-name",
   requireAuth,
+  requireAdmin,
   requireNodeId,
   body("display_name").trim().isLength({ min: 1, max: 80 }),
   validate,
@@ -132,6 +133,7 @@ router.patch(
 router.post(
   "/:id/deactivate",
   requireAuth,
+  requireAdmin,
   requireNodeId,
   body("reason").optional().trim(),
   validate,
@@ -155,7 +157,7 @@ router.post(
 );
 
 // POST /api/nodes/:id/reactivate
-router.post("/:id/reactivate", requireAuth, requireNodeId, async (req, res) => {
+router.post("/:id/reactivate", requireAuth, requireAdmin, requireNodeId, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE nodes SET is_active = TRUE WHERE id = $1 RETURNING *`,

@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const pool   = require("../db/pool");
 const { body, validationResult } = require("express-validator");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -27,8 +27,33 @@ router.get("/active", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/posts — list posts, filterable by status
-router.get("/", requireAuth, async (req, res) => {
+// GET /api/posts/mine — posts for the logged-in user's linked node
+router.get("/mine", requireAuth, async (req, res) => {
+  try {
+    const userRes = await pool.query(
+      "SELECT node_id FROM dashboard_users WHERE id = $1",
+      [req.user.sub]
+    );
+    const nodeId = userRes.rows[0]?.node_id;
+    if (!nodeId) {
+      return res.json([]);
+    }
+    const { rows } = await pool.query(
+      `SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name
+       FROM posts p
+       LEFT JOIN nodes n ON n.id = p.node_id
+       WHERE p.node_id = $1
+       ORDER BY p.submitted_at DESC`,
+      [nodeId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/posts — list posts, filterable by status (admin)
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `
@@ -46,9 +71,10 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/posts — submit new post request (from client node)
+// POST /api/posts — submit new post request (logged-in user or admin)
 router.post(
   "/",
+  requireAuth,
   body("node_id").matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/),
   body("message_text").trim().isLength({ min: 1, max: 280 }),
   body("package_days").isInt({ min: 1, max: 7 }),
@@ -57,6 +83,23 @@ router.post(
   validate,
   async (req, res) => {
     const { node_id, message_text, link, phone, package_days } = req.body;
+
+    if (req.user.role !== "admin") {
+      const userRes = await pool.query(
+        "SELECT node_id FROM dashboard_users WHERE id = $1",
+        [req.user.sub]
+      );
+      const linkedNode = userRes.rows[0]?.node_id;
+      if (!linkedNode) {
+        return res.status(400).json({
+          error: "Link your node ID in your profile before posting",
+          hint: "PATCH /api/auth/profile with your NODE-XXXX-XXXX id",
+        });
+      }
+      if (linkedNode !== node_id) {
+        return res.status(403).json({ error: "You can only post from your linked node" });
+      }
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -101,7 +144,7 @@ router.post(
 );
 
 // POST /api/posts/:id/approve
-router.post("/:id/approve", requireAuth, async (req, res) => {
+router.post("/:id/approve", requireAuth, requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -188,7 +231,7 @@ router.post("/:id/approve", requireAuth, async (req, res) => {
 });
 
 // POST /api/posts/:id/reject
-router.post("/:id/reject", requireAuth, async (req, res) => {
+router.post("/:id/reject", requireAuth, requireAdmin, async (req, res) => {
   try {
     const postRes = await pool.query("SELECT * FROM posts WHERE id=$1", [req.params.id]);
     if (!postRes.rows.length) return res.status(404).json({ error: "Post not found" });
@@ -208,6 +251,7 @@ router.post("/:id/reject", requireAuth, async (req, res) => {
 router.post(
   "/:id/delete",
   requireAuth,
+  requireAdmin,
   body("reason").optional().trim(),
   validate,
   async (req, res) => {
@@ -228,8 +272,41 @@ router.post(
   }
 );
 
+// POST /api/posts/:id/renew — extend broadcast duration (admin)
+router.post("/:id/renew", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const postRes = await pool.query("SELECT * FROM posts WHERE id=$1", [req.params.id]);
+    if (!postRes.rows.length) return res.status(404).json({ error: "Post not found" });
+    const post = postRes.rows[0];
+    if (post.status !== "approved") {
+      return res.status(409).json({ error: "Only approved posts can be renewed" });
+    }
+
+    const base =
+      post.expires_at && new Date(post.expires_at) > new Date()
+        ? new Date(post.expires_at)
+        : new Date();
+    const newExpires = new Date(base.getTime() + post.package_days * 86400 * 1000);
+
+    const { rows } = await pool.query(
+      "UPDATE posts SET expires_at=$1, status='approved' WHERE id=$2 RETURNING *",
+      [newExpires, req.params.id]
+    );
+
+    await pool.query(
+      `INSERT INTO sync_queue(target_node, type, payload, priority)
+       VALUES(NULL, 'post_approved', $1, 3)`,
+      [JSON.stringify({ post: rows[0] })]
+    );
+
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/posts/:id/expire — manual operator expiry
-router.post("/:id/expire", requireAuth, async (req, res) => {
+router.post("/:id/expire", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "UPDATE posts SET expires_at=NOW() WHERE id=$1 AND status='approved' RETURNING *",

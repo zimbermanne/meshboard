@@ -5,7 +5,13 @@ const JWT_EXPIRES = process.env.JWT_EXPIRES || "7d";
 
 function signToken(user) {
   return jwt.sign(
-    { sub: user.id, email: user.email, name: user.name },
+    {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role || "user",
+      node_id: user.node_id || null,
+    },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES }
   );
@@ -25,4 +31,29 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth, signToken, JWT_SECRET };
+async function requireAdmin(req, res, next) {
+  if (req.user?.role === "admin") {
+    return next();
+  }
+
+  try {
+    const pool = require("../db/pool");
+    const { rows } = await pool.query(
+      "SELECT role FROM dashboard_users WHERE id = $1",
+      [req.user.sub]
+    );
+    if (rows[0]?.role === "admin") {
+      req.user.role = "admin";
+      return next();
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+
+  return res.status(403).json({
+    error: "Admin access required",
+    hint: "This action requires an administrator account.",
+  });
+}
+
+module.exports = { requireAuth, requireAdmin, signToken, JWT_SECRET };

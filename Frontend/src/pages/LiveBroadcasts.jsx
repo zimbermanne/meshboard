@@ -6,6 +6,20 @@ import { useState } from "react";
 export default function LiveBroadcasts() {
   const { data, loading, error, reload } = useApi(() => api.activePosts());
   const [expiring, setExpiring] = useState({});
+  const [renewing, setRenewing] = useState({});
+
+  async function renew(id) {
+    if (!confirm("Extend this broadcast by its package duration?")) return;
+    setRenewing(r => ({ ...r, [id]: true }));
+    try {
+      await api.renewPost(id);
+      reload();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setRenewing(r => ({ ...r, [id]: false }));
+    }
+  }
 
   async function expire(id) {
     if (!confirm("Manually expire this broadcast?")) return;
@@ -47,8 +61,11 @@ export default function LiveBroadcasts() {
                   <td style={{minWidth:160}}>
                     <CountdownBar secondsRemaining={b.seconds_remaining} totalSeconds={b.total_seconds} />
                   </td>
-                  <td>
-                    <button className="btn btn-reject" style={{fontSize:11}} disabled={expiring[b.id]} onClick={() => expire(b.id)}>
+                  <td style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-approve" style={{ fontSize: 11 }} disabled={renewing[b.id]} onClick={() => renew(b.id)}>
+                      {renewing[b.id] ? "…" : "Renew"}
+                    </button>
+                    <button className="btn btn-reject" style={{ fontSize: 11 }} disabled={expiring[b.id]} onClick={() => expire(b.id)}>
                       {expiring[b.id] ? "…" : "Expire"}
                     </button>
                   </td>

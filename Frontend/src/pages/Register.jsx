@@ -16,7 +16,7 @@ const AUTH_CSS = `
 
 export default function Register({ onSwitchToLogin }) {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "", node_id: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -42,6 +42,7 @@ export default function Register({ onSwitchToLogin }) {
         phone: form.phone.trim(),
         email: form.email.trim(),
         password: form.password,
+        ...(form.node_id.trim() ? { node_id: form.node_id.trim().toUpperCase() } : {}),
       });
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -60,7 +61,7 @@ export default function Register({ onSwitchToLogin }) {
           </div>
           <div className="auth-sub">Super-Node Dashboard</div>
           <h1 className="auth-title">Create account</h1>
-          <p className="auth-sub" style={{ marginBottom: 16 }}>Register to view dashboard messages</p>
+          <p className="auth-sub" style={{ marginBottom: 16 }}>Create a member account to view posts and redeem tokens</p>
 
           {error && <div className="error-msg">{error}</div>}
 
@@ -84,6 +85,10 @@ export default function Register({ onSwitchToLogin }) {
             <div className="input-group">
               <label className="input-label">Confirm password</label>
               <input className="field" type="password" value={form.confirm} onChange={update("confirm")} placeholder="Repeat password" required autoComplete="new-password" />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Node ID (optional)</label>
+              <input className="field" type="text" value={form.node_id} onChange={update("node_id")} placeholder="NODE-XXXX-XXXX" />
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%", padding: "10px" }}>
               {loading ? "Creating account…" : "Create account"}

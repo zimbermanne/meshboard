@@ -62,12 +62,32 @@ export function AuthProvider({ children }) {
     return data.user;
   }, [persist]);
 
+  const updateProfile = useCallback(async (body) => {
+    const data = await api.updateProfile(body);
+    persist(data.user, data.token);
+    return data.user;
+  }, [persist]);
+
   const logout = useCallback(() => {
     persist(null, null);
   }, [persist]);
 
+  const isAdmin = user?.role === "admin";
+
   return (
-    <AuthContext.Provider value={{ user, token, booting, login, register, logout, isAuthenticated: Boolean(token) }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        booting,
+        login,
+        register,
+        updateProfile,
+        logout,
+        isAuthenticated: Boolean(token),
+        isAdmin,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

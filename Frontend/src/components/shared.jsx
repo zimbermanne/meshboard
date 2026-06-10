@@ -23,6 +23,8 @@ export const sharedCss = `
   .badge-rejected{background:rgba(255,82,82,.12);color:var(--red);}
   .badge-redeemed{background:rgba(64,196,255,.12);color:var(--blue);}
   .badge-expired{background:rgba(107,115,104,.2);color:var(--muted);}
+  .badge-revoked{background:rgba(255,82,82,.12);color:var(--red);}
+  .badge-user{background:rgba(64,196,255,.12);color:var(--blue);}
   .btn{padding:7px 14px;border-radius:4px;font-size:12px;font-weight:600;font-family:var(--mono);cursor:pointer;border:none;transition:all .15s;}
   .btn-approve{background:rgba(0,230,118,.15);color:var(--accent);border:1px solid rgba(0,230,118,.3);}
   .btn-approve:hover{background:rgba(0,230,118,.25);}
