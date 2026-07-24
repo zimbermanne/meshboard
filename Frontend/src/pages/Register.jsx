@@ -16,7 +16,7 @@ const AUTH_CSS = `
 
 export default function Register({ onSwitchToLogin }) {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "", node_id: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "", town: "", node_id: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -35,6 +35,10 @@ export default function Register({ onSwitchToLogin }) {
       setError("Password must be at least 6 characters");
       return;
     }
+    if (!form.town.trim()) {
+      setError("Please select your town");
+      return;
+    }
     setLoading(true);
     try {
       await register({
@@ -42,6 +46,7 @@ export default function Register({ onSwitchToLogin }) {
         phone: form.phone.trim(),
         email: form.email.trim(),
         password: form.password,
+        town: form.town.trim().toLowerCase(),
         ...(form.node_id.trim() ? { node_id: form.node_id.trim().toUpperCase() } : {}),
       });
     } catch (err) {
@@ -94,6 +99,20 @@ export default function Register({ onSwitchToLogin }) {
               <div className="input-group">
                 <label className="input-label">Confirm password</label>
                 <input className="field" type="password" value={form.confirm} onChange={update("confirm")} placeholder="Repeat password" required autoComplete="new-password" />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Your town</label>
+                <select className="field" value={form.town} onChange={update("town")} required>
+                  <option value="" disabled>Select your town</option>
+                  <option value="arusha">Arusha</option>
+                  <option value="moshi">Moshi</option>
+                  <option value="karatu">Karatu</option>
+                  <option value="same">Same</option>
+                  <option value="mwanga">Mwanga</option>
+                </select>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  You'll only see and post listings within your town.
+                </div>
               </div>
               <div className="input-group">
                 <label className="input-label">Node ID (optional)</label>

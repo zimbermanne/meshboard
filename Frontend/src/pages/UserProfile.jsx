@@ -6,6 +6,7 @@ import { NODE_ID_RE } from "../api/client";
 export default function UserProfile() {
   const { user, updateProfile } = useAuth();
   const [nodeId, setNodeId] = useState(user?.node_id || "");
+  const [town, setTown] = useState(user?.town || "");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,10 +21,14 @@ export default function UserProfile() {
       setError("Node ID must match format NODE-XXXX-XXXX");
       return;
     }
+    if (!town) {
+      setError("Please select your town");
+      return;
+    }
 
     setLoading(true);
     try {
-      await updateProfile({ node_id: trimmed || null });
+      await updateProfile({ node_id: trimmed || null, town });
       setSaved(true);
     } catch (err) {
       setError(err.message || "Failed to save profile");
@@ -46,6 +51,7 @@ export default function UserProfile() {
         <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--mono)", marginTop: 2 }}>{user?.phone}</div>
         <div style={{ marginTop: 12 }}>
           <span className={`badge badge-${user?.role === "admin" ? "approved" : "pending"}`}>{user?.role || "user"}</span>
+          {user?.town && <span className="badge" style={{ marginLeft: 8, textTransform: "capitalize" }}>{user.town}</span>}
         </div>
       </div>
 
@@ -57,6 +63,22 @@ export default function UserProfile() {
       )}
 
       <form onSubmit={handleSave} className="card" style={{ maxWidth: 480 }}>
+        <div className="card-label" style={{ marginBottom: 12 }}>Town</div>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16, lineHeight: 1.5 }}>
+          Controls which local listings you see and which town your posts appear in.
+        </p>
+        <div className="input-group" style={{ marginBottom: 20 }}>
+          <label className="input-label">Your town</label>
+          <select className="field" value={town} onChange={(e) => setTown(e.target.value)} style={{ width: "100%" }}>
+            <option value="" disabled>Select your town</option>
+            <option value="arusha">Arusha</option>
+            <option value="moshi">Moshi</option>
+            <option value="karatu">Karatu</option>
+            <option value="same">Same</option>
+            <option value="mwanga">Mwanga</option>
+          </select>
+        </div>
+
         <div className="card-label" style={{ marginBottom: 12 }}>Mesh node</div>
         <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16, lineHeight: 1.5 }}>
           Link the NODE ID from your mesh device. Required for posting and redeeming credit tokens.
@@ -72,7 +94,7 @@ export default function UserProfile() {
           />
         </div>
         <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? "Saving…" : "Save node link"}
+          {loading ? "Saving…" : "Save profile"}
         </button>
       </form>
     </>
