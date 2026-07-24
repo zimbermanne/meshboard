@@ -1,0 +1,10 @@
+# Install only — do not set [start] here (use railway.toml startCommand)
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+dependsOn = ["install"]
+cmds = ["npm run build"]
