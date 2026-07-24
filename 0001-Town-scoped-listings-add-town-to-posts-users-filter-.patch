@@ -1,0 +1,773 @@
+From cd85b5db387efa081e395272df9fe52ef5319426 Mon Sep 17 00:00:00 2001
+From: MeshBoard Dev <dev@meshboard.local>
+Date: Fri, 24 Jul 2026 09:31:36 +0000
+Subject: [PATCH] Town-scoped listings: add town to posts/users, filter active
+ feed; remove dead FastAPI stack and stale schema.sql; stop tracking .env
+
+---
+ .env                     |  11 ----
+ Backend/.env             |   5 --
+ Backend/.gitignore       |   1 +
+ Backend/database.py      |  34 -----------
+ Backend/init_db.py       | 129 ---------------------------------------
+ Backend/main.py          | 121 ------------------------------------
+ Backend/migrate.js       |   8 +++
+ Backend/model.py         |  12 ----
+ Backend/requirements.txt |   3 -
+ Backend/routes/auth.js   |  53 ++++++++++++----
+ Backend/routes/posts.js  |  52 +++++++++++++---
+ Backend/schema.sql       | 129 ---------------------------------------
+ 12 files changed, 91 insertions(+), 467 deletions(-)
+ delete mode 100644 .env
+ delete mode 100644 Backend/.env
+ delete mode 100644 Backend/database.py
+ delete mode 100644 Backend/init_db.py
+ delete mode 100644 Backend/main.py
+ delete mode 100644 Backend/model.py
+ delete mode 100644 Backend/requirements.txt
+ delete mode 100644 Backend/schema.sql
+
+diff --git a/.env b/.env
+deleted file mode 100644
+index c3e3b7f..0000000
+--- a/.env
++++ /dev/null
+@@ -1,11 +0,0 @@
+-DB_HOST=localhost
+-DB_PORT=5432
+-DB_NAME=meshboard
+-DB_USER=postgres
+-DB_PASSWORD=yourpassword
+-DATABASE_URL=postgresql://postgres@localhost:5432/meshboard
+-SUPERNODE_ID=SUPERNODE-ARUSHA-01
+-PORT=8080
+-TOKEN_EXPIRY_HOURS=48
+-ALLOWED_ORIGINS=http://localhost:5173
+-NODE_ENV=development
+\ No newline at end of file
+diff --git a/Backend/.env b/Backend/.env
+deleted file mode 100644
+index fddb29f..0000000
+--- a/Backend/.env
++++ /dev/null
+@@ -1,5 +0,0 @@
+-DB_HOST=localhost
+-DB_PORT=5432
+-DB_NAME=meshboard
+-DB_USER=postgres
+-DB_PASSWORD=
+\ No newline at end of file
+diff --git a/Backend/.gitignore b/Backend/.gitignore
+index e69de29..4c49bd7 100644
+--- a/Backend/.gitignore
++++ b/Backend/.gitignore
+@@ -0,0 +1 @@
++.env
+diff --git a/Backend/database.py b/Backend/database.py
+deleted file mode 100644
+index 085436e..0000000
+--- a/Backend/database.py
++++ /dev/null
+@@ -1,34 +0,0 @@
+-# database.py
+-from sqlalchemy import create_engine
+-from sqlalchemy.orm import sessionmaker, declarative_base
+-import os
+-from dotenv import load_dotenv
+-
+-load_dotenv()
+-
+-# Get DATABASE_URL from environment
+-DATABASE_URL = os.getenv(
+-    "DATABASE_URL",
+-    "postgresql://postgres:password@localhost:5432/your_db"
+-)
+-
+-# Fix for SQLAlchemy 2.0 (if needed)
+-if DATABASE_URL.startswith("postgres://"):
+-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+-
+-# Create engine
+-engine = create_engine(
+-    DATABASE_URL,
+-    pool_pre_ping=True,  # Test connection before using
+-    echo=False  # Set to True to see SQL queries
+-)
+-
+-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+-Base = declarative_base()
+-
+-def get_db():
+-    db = SessionLocal()
+-    try:
+-        yield db
+-    finally:
+-        db.close()
+diff --git a/Backend/init_db.py b/Backend/init_db.py
+deleted file mode 100644
+index caa932c..0000000
+--- a/Backend/init_db.py
++++ /dev/null
+@@ -1,129 +0,0 @@
+-# init_db.py
+-import logging
+-from sqlalchemy import text, inspect
+-from database import engine, SessionLocal, Base
+-from models import User
+-
+-# Setup logging
+-logging.basicConfig(level=logging.INFO)
+-logger = logging.getLogger(__name__)
+-
+-class DatabaseInitAgent:
+-    """Automatically initializes and manages database setup"""
+-    
+-    def __init__(self):
+-        self.engine = engine
+-        self.session = SessionLocal()
+-    
+-    def check_database_connection(self):
+-        """Test connection to database"""
+-        try:
+-            with self.engine.connect() as conn:
+-                conn.execute(text("SELECT 1"))
+-            logger.info("✓ Database connection successful")
+-            return True
+-        except Exception as e:
+-            logger.error(f"✗ Database connection failed: {e}")
+-            return False
+-    
+-    def check_table_exists(self, table_name):
+-        """Check if a table exists in the database"""
+-        inspector = inspect(self.engine)
+-        tables = inspector.get_table_names()
+-        return table_name in tables
+-    
+-    def create_tables(self):
+-        """Create all tables from SQLAlchemy models"""
+-        try:
+-            Base.metadata.create_all(bind=self.engine)
+-            logger.info("✓ All tables created successfully")
+-            return True
+-        except Exception as e:
+-            logger.error(f"✗ Failed to create tables: {e}")
+-            return False
+-    
+-    def seed_initial_data(self):
+-        """Insert test data if users table is empty"""
+-        try:
+-            # Check if users table is empty
+-            user_count = self.session.query(User).count()
+-            
+-            if user_count == 0:
+-                logger.info("Users table is empty. Inserting seed data...")
+-                
+-                test_users = [
+-                    User(name="John Doe", email="john@example.com"),
+-                    User(name="Jane Smith", email="jane@example.com"),
+-                    User(name="Bob Johnson", email="bob@example.com"),
+-                    User(name="Alice Williams", email="alice@example.com"),
+-                    User(name="Charlie Brown", email="charlie@example.com"),
+-                ]
+-                
+-                self.session.add_all(test_users)
+-                self.session.commit()
+-                logger.info(f"✓ Inserted {len(test_users)} test users")
+-            else:
+-                logger.info(f"✓ Database already has {user_count} users. Skipping seed data.")
+-                
+-            return True
+-        except Exception as e:
+-            logger.error(f"✗ Failed to seed data: {e}")
+-            self.session.rollback()
+-            return False
+-    
+-    def get_database_status(self):
+-        """Get a status report of the database"""
+-        try:
+-            user_count = self.session.query(User).count()
+-            return {
+-                "status": "healthy",
+-                "users_count": user_count,
+-                "message": f"Database is healthy with {user_count} users"
+-            }
+-        except Exception as e:
+-            return {
+-                "status": "error",
+-                "message": str(e)
+-            }
+-    
+-    def initialize(self):
+-        """Run full initialization"""
+-        logger.info("=" * 50)
+-        logger.info("Starting Database Initialization Agent")
+-        logger.info("=" * 50)
+-        
+-        # Step 1: Check connection
+-        if not self.check_database_connection():
+-            logger.error("Cannot proceed without database connection")
+-            return False
+-        
+-        # Step 2: Create tables
+-        if not self.create_tables():
+-            logger.error("Failed to create tables")
+-            return False
+-        
+-        # Step 3: Seed initial data
+-        self.seed_initial_data()
+-        
+-        # Step 4: Report status
+-        status = self.get_database_status()
+-        logger.info(f"✓ Database Status: {status['message']}")
+-        
+-        logger.info("=" * 50)
+-        logger.info("Database Initialization Complete ✓")
+-        logger.info("=" * 50)
+-        
+-        return True
+-    
+-    def close(self):
+-        """Close database session"""
+-        self.session.close()
+-
+-
+-# Function to run initialization
+-def init_database():
+-    """Initialize database on startup"""
+-    agent = DatabaseInitAgent()
+-    success = agent.initialize()
+-    agent.close()
+-    return success
+diff --git a/Backend/main.py b/Backend/main.py
+deleted file mode 100644
+index 0c207b0..0000000
+--- a/Backend/main.py
++++ /dev/null
+@@ -1,121 +0,0 @@
+-# main.py
+-from fastapi import FastAPI
+-from fastapi.middleware.cors import CORSMiddleware
+-import logging
+-from init_db import init_database  # Import the agent
+-from routes import users  # Your routes
+-import os
+-from pydantic import BaseModel
+-from typing import List, Optional
+-
+-# Setup logging
+-logging.basicConfig(level=logging.INFO)
+-logger = logging.getLogger(__name__)
+-
+-# Initialize database on startup
+-logger.info("Running database initialization...")
+-init_database()
+-
+-# Create FastAPI app
+-app = FastAPI(title="MeshBoard Super-Node API")
+-
+-# CORS configuration
+-app.add_middleware(
+-    CORSMiddleware,
+-    allow_origins=[
+-        "http://localhost:3000",
+-        "http://localhost:5173",
+-        "http://127.0.0.1:3000",
+-    ],
+-    allow_credentials=True,
+-    allow_methods=["*"],
+-    allow_headers=["*"],
+-)
+-
+-# Include routes
+-app.include_router(users.router)
+-
+-@app.get("/")
+-def read_root():
+-    return {"message": "MeshBoard Super-Node API"}
+-
+-@app.get("/health")
+-def health_check():
+-    """Health check endpoint"""
+-    return {
+-        "status": "healthy",
+-        "database": "connected",
+-        "api": "running"
+-    }
+-
+-# Run with: uvicorn main:app --reload
+-
+-
+-
+-app = FastAPI(
+-    title="MeshBoard Supernode API",
+-    description="FastAPI backend optimized for Web and Android clients.",
+-    version="1.0.0"
+-)
+-
+-# Setup CORS using environment variables from Railway
+-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+-
+-app.add_middleware(
+-    CORSMiddleware,
+-    allow_origins=allowed_origins,
+-    allow_credentials=True,
+-    allow_methods=["*"],
+-    allow_headers=["*"],
+-)
+-
+-# Pydantic Models (This auto-generates your Android-friendly documentation!)
+-class Node(BaseModel):
+-    id: str
+-    display_name: str
+-    credit_balance: float
+-    total_spent: float
+-    is_active: bool
+-
+-class Post(BaseModel):
+-    id: str
+-    node_id: str
+-    message_text: str
+-    status: str  # pending, active
+-
+-# --- ENDPOINTS ---
+-
+-@app.get("/api/health")
+-def health_check():
+-    return {"status": "OK", "engine": "FastAPI + Uvicorn"}
+-
+-@app.get("/api/stats")
+-def get_stats():
+-    # Mocking aggregated database data for the dashboard
+-    return {
+-        "active_nodes": 3,
+-        "pending_posts": 2,
+-        "live_broadcasts": 1
+-    }
+-
+-@app.get("/api/nodes", response_model=List[Node])
+-def get_nodes():
+-    return [
+-        {"id": "NODE-A1B2-C3D4", "display_name": "Arusha Market Node", "credit_balance": 12.00, "total_spent": 8.00, "is_active": True},
+-        {"id": "NODE-E5F6-G7H8", "display_name": "Moshi Community Hub", "credit_balance": 5.00, "total_spent": 3.00, "is_active": True},
+-        {"id": "NODE-I9J0-K1L2", "display_name": "Karatu Relay", "credit_balance": 0.00, "total_spent": 10.00, "is_active": False}
+-    ]
+-
+-@app.get("/api/posts", response_model=List[Post])
+-def get_posts(status: Optional[str] = None):
+-    all_posts = [
+-        {"id": "MSG-DEMO01", "node_id": "NODE-A1B2-C3D4", "message_text": "Fresh produce at Arusha market!", "status": "active"},
+-        {"id": "MSG-DEMO02", "node_id": "NODE-E5F6-G7H8", "message_text": "Moshi heavy rain alert - check grid.", "status": "pending"}
+-    ]
+-    if status:
+-        return [p for p in all_posts if p["status"] == status]
+-    return all_posts
+-
+-@app.post("/api/posts/{post_id}/approve")
+-def approve_post(post_id: str):
+-    return {"status": "success", "message": f"Post {post_id} has been approved."}
+diff --git a/Backend/migrate.js b/Backend/migrate.js
+index 037732e..ca7cada 100644
+--- a/Backend/migrate.js
++++ b/Backend/migrate.js
+@@ -85,12 +85,16 @@ async function migrate() {
+         is_free_post    BOOLEAN NOT NULL DEFAULT FALSE,
+         status          TEXT NOT NULL DEFAULT 'pending',
+         rejection_reason TEXT,
++        town            TEXT,
+         submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+         approved_at     TIMESTAMPTZ,
+         expires_at      TIMESTAMPTZ,
+         approved_by     TEXT
+       );
+     `);
++    // Backfill column for pre-existing tables (CREATE IF NOT EXISTS above won't touch an existing table)
++    await client.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS town TEXT;`);
++    await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_town_active ON posts (town) WHERE status = 'approved';`);
+ 
+     // ── Free post tracking ─────────────────────────────────────────────────
+     await client.query(`
+@@ -128,6 +132,7 @@ async function migrate() {
+         password_hash TEXT NOT NULL,
+         role          TEXT NOT NULL DEFAULT 'user',
+         node_id       TEXT REFERENCES nodes(id) ON DELETE SET NULL,
++        town          TEXT,
+         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+         UNIQUE (email),
+         UNIQUE (phone)
+@@ -140,6 +145,9 @@ async function migrate() {
+     await client.query(`
+       ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL;
+     `);
++    await client.query(`
++      ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS town TEXT;
++    `);
+ 
+     // ── Sync queue ─────────────────────────────────────────────────────────
+     await client.query(`
+diff --git a/Backend/model.py b/Backend/model.py
+deleted file mode 100644
+index 340d3c5..0000000
+--- a/Backend/model.py
++++ /dev/null
+@@ -1,12 +0,0 @@
+-# models.py
+-from sqlalchemy import Column, Integer, String, DateTime
+-from database import Base
+-from datetime import datetime
+-
+-class User(Base):
+-    __tablename__ = "users"
+-    
+-    id = Column(Integer, primary_key=True, index=True)
+-    name = Column(String(100), nullable=False)
+-    email = Column(String(100), unique=True, nullable=False, index=True)
+-    created_at = Column(DateTime, default=datetime.utcnow)
+diff --git a/Backend/requirements.txt b/Backend/requirements.txt
+deleted file mode 100644
+index 098db0c..0000000
+--- a/Backend/requirements.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-fastapi==0.110.0
+-uvicorn==0.28.0
+-pydantic==2.6.4
+\ No newline at end of file
+diff --git a/Backend/routes/auth.js b/Backend/routes/auth.js
+index 38628fb..104a532 100644
+--- a/Backend/routes/auth.js
++++ b/Backend/routes/auth.js
+@@ -34,11 +34,12 @@ function publicUser(row) {
+     email: row.email,
+     role: row.role || "user",
+     node_id: row.node_id || null,
++    town: row.town || null,
+     created_at: row.created_at,
+   };
+ }
+ 
+-const USER_COLUMNS = "id, name, phone, email, password_hash, role, node_id, created_at";
++const USER_COLUMNS = "id, name, phone, email, password_hash, role, node_id, town, created_at";
+ 
+ // POST /api/auth/register — always creates a normal user account
+ router.post(
+@@ -54,12 +55,18 @@ router.post(
+       .optional()
+       .matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+       .withMessage("Invalid node ID format"),
++    body("town")
++      .trim()
++      .notEmpty()
++      .withMessage("Town is required")
++      .isLength({ max: 60 })
++      .customSanitizer((v) => v.toLowerCase()),
+   ],
+   validate,
+   async (req, res) => {
+     if (!hasDatabaseConfig()) return dbUnavailable(res);
+ 
+-    const { name, phone, email, password, node_id } = req.body;
++    const { name, phone, email, password, node_id, town } = req.body;
+     try {
+       if (node_id) {
+         const nodeRes = await pool.query("SELECT id FROM nodes WHERE id = $1", [node_id]);
+@@ -79,10 +86,10 @@ router.post(
+       const passwordHash = await bcrypt.hash(password, 10);
+       const id = uuidv4();
+       const { rows } = await pool.query(
+-        `INSERT INTO dashboard_users (id, name, phone, email, password_hash, role, node_id)
+-         VALUES ($1, $2, $3, $4, $5, 'user', $6)
+-         RETURNING id, name, phone, email, role, node_id, created_at`,
+-        [id, name, phone, email, passwordHash, node_id || null]
++        `INSERT INTO dashboard_users (id, name, phone, email, password_hash, role, node_id, town)
++         VALUES ($1, $2, $3, $4, $5, 'user', $6, $7)
++         RETURNING id, name, phone, email, role, node_id, town, created_at`,
++        [id, name, phone, email, passwordHash, node_id || null, town]
+       );
+ 
+       const user = rows[0];
+@@ -159,7 +166,7 @@ router.get("/me", requireAuth, async (req, res) => {
+   }
+ });
+ 
+-// PATCH /api/auth/profile — link node ID (normal users)
++// PATCH /api/auth/profile — link node ID and/or set town (normal users)
+ router.patch(
+   "/profile",
+   requireAuth,
+@@ -173,14 +180,21 @@ router.patch(
+         }
+         return true;
+       }),
++    body("town")
++      .optional()
++      .trim()
++      .notEmpty()
++      .withMessage("Town cannot be blank")
++      .isLength({ max: 60 })
++      .customSanitizer((v) => v.toLowerCase()),
+   ],
+   validate,
+   async (req, res) => {
+     if (!hasDatabaseConfig()) return dbUnavailable(res);
+ 
+-    const { node_id } = req.body;
+-    if (node_id === undefined) {
+-      return res.status(400).json({ error: "Provide node_id to link your mesh node" });
++    const { node_id, town } = req.body;
++    if (node_id === undefined && town === undefined) {
++      return res.status(400).json({ error: "Provide node_id and/or town to update" });
+     }
+ 
+     try {
+@@ -191,10 +205,23 @@ router.patch(
+         }
+       }
+ 
++      // Build a dynamic SET clause so we only touch fields the caller actually sent
++      const sets = [];
++      const params = [];
++      if (node_id !== undefined) {
++        params.push(node_id);
++        sets.push(`node_id = $${params.length}`);
++      }
++      if (town !== undefined) {
++        params.push(town);
++        sets.push(`town = $${params.length}`);
++      }
++      params.push(req.user.sub);
++
+       const { rows } = await pool.query(
+-        `UPDATE dashboard_users SET node_id = $1 WHERE id = $2
+-         RETURNING id, name, phone, email, role, node_id, created_at`,
+-        [node_id, req.user.sub]
++        `UPDATE dashboard_users SET ${sets.join(", ")} WHERE id = $${params.length}
++         RETURNING id, name, phone, email, role, node_id, town, created_at`,
++        params
+       );
+       if (!rows.length) return res.status(404).json({ error: "User not found" });
+ 
+diff --git a/Backend/routes/posts.js b/Backend/routes/posts.js
+index 2f6b3ff..3b7fe88 100644
+--- a/Backend/routes/posts.js
++++ b/Backend/routes/posts.js
+@@ -10,17 +10,40 @@ const validate = (req, res, next) => {
+ };
+ 
+ // GET /api/posts/active — must be registered before "/" (Express route order)
++// Town-scoped: defaults to the requesting user's own town so Arusha never
++// sees Moshi's feed by accident. Admins may pass ?town=all to see everything,
++// or ?town=<name> to inspect a specific town.
+ router.get("/active", requireAuth, async (req, res) => {
+   try {
+-    const { rows } = await pool.query(`
++    let town = (req.query.town || "").trim().toLowerCase();
++
++    if (!town) {
++      const userRes = await pool.query(
++        "SELECT town FROM dashboard_users WHERE id = $1",
++        [req.user.sub]
++      );
++      town = userRes.rows[0]?.town || null;
++      if (!town) {
++        return res.status(400).json({
++          error: "Set your town in your profile to see local listings",
++          hint: "PATCH /api/auth/profile with your town",
++        });
++      }
++    }
++
++    const showAll = req.user.role === "admin" && town === "all";
++
++    const sql = `
+       SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name,
+              EXTRACT(EPOCH FROM (p.expires_at - NOW())) AS seconds_remaining,
+              EXTRACT(EPOCH FROM (p.expires_at - p.approved_at)) AS total_seconds
+       FROM posts p
+       LEFT JOIN nodes n ON n.id = p.node_id
+       WHERE p.status = 'approved' AND p.expires_at > NOW()
++      ${showAll ? "" : "AND p.town = $1"}
+       ORDER BY p.expires_at ASC
+-    `);
++    `;
++    const { rows } = await pool.query(sql, showAll ? [] : [town]);
+     res.json(rows);
+   } catch (err) {
+     res.status(500).json({ error: err.message });
+@@ -84,12 +107,21 @@ router.post(
+   async (req, res) => {
+     const { node_id, message_text, link, phone, package_days } = req.body;
+ 
++    const requesterRes = await pool.query(
++      "SELECT node_id, town FROM dashboard_users WHERE id = $1",
++      [req.user.sub]
++    );
++    const requester = requesterRes.rows[0];
++    const town = requester?.town || null;
++    if (!town) {
++      return res.status(400).json({
++        error: "Set your town before posting",
++        hint: "PATCH /api/auth/profile with your town",
++      });
++    }
++
+     if (req.user.role !== "admin") {
+-      const userRes = await pool.query(
+-        "SELECT node_id FROM dashboard_users WHERE id = $1",
+-        [req.user.sub]
+-      );
+-      const linkedNode = userRes.rows[0]?.node_id;
++      const linkedNode = requester?.node_id;
+       if (!linkedNode) {
+         return res.status(400).json({
+           error: "Link your node ID in your profile before posting",
+@@ -127,9 +159,9 @@ router.post(
+ 
+       const postId = "MSG-" + Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);
+       const { rows } = await client.query(
+-        `INSERT INTO posts(id, node_id, message_text, link, phone, package_days, credit_cost, is_free_post)
+-         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+-        [postId, node_id, message_text, link || null, phone || null, package_days, credit_cost, isFreePost]
++        `INSERT INTO posts(id, node_id, message_text, link, phone, package_days, credit_cost, is_free_post, town)
++         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
++        [postId, node_id, message_text, link || null, phone || null, package_days, credit_cost, isFreePost, town]
+       );
+ 
+       await client.query("COMMIT");
+diff --git a/Backend/schema.sql b/Backend/schema.sql
+deleted file mode 100644
+index 660f09c..0000000
+--- a/Backend/schema.sql
++++ /dev/null
+@@ -1,129 +0,0 @@
+--- ==========================================
+--- 1. USER TABLE 
+--- (Note: "user" is a reserved keyword in Postgres, so it must have double quotes)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS "user" (
+-    id SERIAL PRIMARY KEY,
+-    name VARCHAR(100) NOT NULL,
+-    phone_number VARCHAR(20) UNIQUE NOT NULL,
+-    email VARCHAR(150) UNIQUE,
+-    password_hash VARCHAR(255) NOT NULL,
+-    credit_balance INT DEFAULT 0,
+-    role VARCHAR(20) DEFAULT 'user',
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 2. NODE TABLE (Hardware/Mesh hardware base)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS node (
+-    id SERIAL PRIMARY KEY,
+-    hardware_id VARCHAR(100) UNIQUE NOT NULL,
+-    node_name VARCHAR(100),
+-    location_name VARCHAR(150),
+-    is_active BOOLEAN DEFAULT TRUE,
+-    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 3. POST TABLE (Core message tracking)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS post (
+-    id SERIAL PRIMARY KEY,
+-    user_id INT REFERENCES "user"(id) ON DELETE CASCADE,
+-    node_id INT REFERENCES node(id) ON DELETE SET NULL,
+-    content TEXT NOT NULL,
+-    credit_cost INT DEFAULT 1,
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 4. FREE POST TABLE
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS free_post (
+-    id SERIAL PRIMARY KEY,
+-    post_id INT UNIQUE REFERENCES post(id) ON DELETE CASCADE,
+-    reason VARCHAR(100) DEFAULT 'welcome_bonus',
+-    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 5. TOKEN TABLE (For session authentication tokens)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS token (
+-    id SERIAL PRIMARY KEY,
+-    user_id INT REFERENCES "user"(id) ON DELETE CASCADE,
+-    token_value VARCHAR(255) UNIQUE NOT NULL,
+-    token_type VARCHAR(50) DEFAULT 'session',
+-    expires_at TIMESTAMP NOT NULL,
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 6. PAYMENTS TABLE (Top-ups and incoming balances)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS payments (
+-    id SERIAL PRIMARY KEY,
+-    user_id INT REFERENCES "user"(id) ON DELETE RESTRICT,
+-    amount DECIMAL(10, 2) NOT NULL,
+-    currency VARCHAR(10) DEFAULT 'TZS',
+-    provider VARCHAR(50) NOT NULL,              -- e.g., 'M-Pesa', 'Tigo Pesa', 'Stripe'
+-    reference_id VARCHAR(100) UNIQUE NOT NULL,  -- Payment gateway transaction ID
+-    status VARCHAR(20) DEFAULT 'pending',       -- 'pending', 'completed', 'failed'
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 7. CREDIT TRANSACTIONS TABLE (Balance sheets)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS credit_transactions (
+-    id SERIAL PRIMARY KEY,
+-    user_id INT REFERENCES "user"(id) ON DELETE RESTRICT,
+-    payment_id INT REFERENCES payments(id) ON DELETE SET NULL,
+-    amount INT NOT NULL,                        -- Positive for balance added, negative for balance spent
+-    transaction_type VARCHAR(50) NOT NULL,       -- 'deposit', 'spend', 'refund'
+-    description TEXT,
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- ==========================================
+--- 8. SYNC SESSION TABLE (Hardware connectivity tracking)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS sync_session (
+-    id SERIAL PRIMARY KEY,
+-    node_id INT REFERENCES node(id) ON DELETE CASCADE,
+-    status VARCHAR(20) DEFAULT 'active',
+-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+-    ended_at TIMESTAMP
+-);
+-
+--- ==========================================
+--- 9. SYNC QUEUE TABLE (Packets pending node sync)
+--- ==========================================
+-CREATE TABLE IF NOT EXISTS sync_queue (
+-    id SERIAL PRIMARY KEY,
+-    sync_session_id INT REFERENCES sync_session(id) ON DELETE SET NULL,
+-    post_id INT REFERENCES post(id) ON DELETE CASCADE,
+-    payload JSONB NOT NULL,                     -- Valid Postgres JSON binary data block
+-    status VARCHAR(20) DEFAULT 'queued',
+-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+--- Example modification for all your tables:
+-CREATE TABLE IF NOT EXISTS "user" (
+-    id SERIAL PRIMARY KEY,
+-    name VARCHAR(100) NOT NULL,
+-    phone_number VARCHAR(20) UNIQUE NOT NULL,
+-    email VARCHAR(150) UNIQUE,
+-    password_hash VARCHAR(255) NOT NULL,
+-    credit_balance INT DEFAULT 0,
+-    role VARCHAR(20) DEFAULT 'user',
+-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-);
+-
+-CREATE TABLE IF NOT EXISTS node (
+-    id SERIAL PRIMARY KEY,
+-    hardware_id VARCHAR(100) UNIQUE NOT NULL,
+-    node_name VARCHAR(100),
+-    ...
+-);
+-- 
+2.43.0
+
