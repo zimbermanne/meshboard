@@ -123,9 +123,10 @@ router.post(
     if (req.user.role !== "admin") {
       const linkedNode = requester?.node_id;
       if (!linkedNode) {
+        // Should be unreachable now that nodes are auto-provisioned at
+        // registration/login, but fail safely rather than 500 if it happens.
         return res.status(400).json({
-          error: "Link your node ID in your profile before posting",
-          hint: "PATCH /api/auth/profile with your NODE-XXXX-XXXX id",
+          error: "Your account isn't linked to a node yet — please log out and back in",
         });
       }
       if (linkedNode !== node_id) {

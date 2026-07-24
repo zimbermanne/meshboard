@@ -28,7 +28,9 @@ export default function UserProfile() {
 
     setLoading(true);
     try {
-      await updateProfile({ node_id: trimmed || null, town });
+      // Only send node_id if the user actually entered something — never
+      // clear it to null, since every account needs a linked node to post.
+      await updateProfile({ town, ...(trimmed ? { node_id: trimmed } : {}) });
       setSaved(true);
     } catch (err) {
       setError(err.message || "Failed to save profile");
@@ -79,9 +81,9 @@ export default function UserProfile() {
           </select>
         </div>
 
-        <div className="card-label" style={{ marginBottom: 12 }}>Mesh node</div>
+        <div className="card-label" style={{ marginBottom: 12 }}>Mesh hardware (optional)</div>
         <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16, lineHeight: 1.5 }}>
-          Link the NODE ID from your mesh device. Required for posting and redeeming credit tokens.
+          Your account already works — this is only for relinking to a physical mesh device you own. Leave blank to keep using your account as-is.
         </p>
         <div className="input-group" style={{ marginBottom: 20 }}>
           <label className="input-label">Node ID</label>

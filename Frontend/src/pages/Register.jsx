@@ -115,8 +115,11 @@ export default function Register({ onSwitchToLogin }) {
                 </div>
               </div>
               <div className="input-group">
-                <label className="input-label">Node ID (optional)</label>
-                <input className="field" type="text" value={form.node_id} onChange={update("node_id")} placeholder="NODE-XXXX-XXXX" />
+                <label className="input-label">Mesh hardware node ID (optional)</label>
+                <input className="field" type="text" value={form.node_id} onChange={update("node_id")} placeholder="Only if you own a physical mesh device" />
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  Leave blank — your account works right away. Only fill this in if you own real mesh hardware to link.
+                </div>
               </div>
               <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%", padding: "10px" }}>
                 {loading ? "Creating account…" : "Create account"}

@@ -21,11 +21,11 @@ export default function SubmitPost() {
     setSuccess(null);
 
     if (!user?.node_id) {
-      setError("Link your node ID in Profile before posting.");
+      setError("Your account isn't fully set up yet — try logging out and back in.");
       return;
     }
     if (!NODE_ID_RE.test(user.node_id)) {
-      setError("Your linked node ID is invalid. Update it in Profile.");
+      setError("Something's off with your account setup. Try logging out and back in.");
       return;
     }
 
@@ -55,13 +55,7 @@ export default function SubmitPost() {
       </div>
 
       {!user?.node_id && (
-        <div className="alert">Link your mesh node ID in Profile before you can post.</div>
-      )}
-
-      {user?.node_id && (
-        <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--mono)", marginBottom: 16 }}>
-          Posting as <span style={{ color: "var(--accent)" }}>{user.node_id}</span>
-        </div>
+        <div className="alert">Setting up your account — this should only take a moment. Try refreshing if it doesn't clear.</div>
       )}
 
       {error && <div className="error-msg">{error}</div>}

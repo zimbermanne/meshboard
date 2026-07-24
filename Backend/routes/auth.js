@@ -5,6 +5,7 @@ const { body, validationResult } = require("express-validator");
 const pool = require("../db/pool");
 const { hasDatabaseConfig, getDatabaseDiagnostics } = require("../db/resolveDatabaseConfig");
 const { signToken, requireAuth } = require("../middleware/auth");
+const { provisionVirtualNode } = require("../utils/nodeProvision");
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -54,7 +55,7 @@ router.post(
     body("node_id")
       .optional()
       .matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/)
-      .withMessage("Invalid node ID format"),
+      .withMessage("Invalid node ID format — only use this if you own real mesh hardware"),
     body("town")
       .trim()
       .notEmpty()
@@ -68,6 +69,8 @@ router.post(
 
     const { name, phone, email, password, node_id, town } = req.body;
     try {
+      // Only validate/require an existing node if the user is deliberately
+      // linking real hardware. Everyone else gets one auto-provisioned below.
       if (node_id) {
         const nodeRes = await pool.query("SELECT id FROM nodes WHERE id = $1", [node_id]);
         if (!nodeRes.rows.length) {
@@ -83,13 +86,17 @@ router.post(
         return res.status(409).json({ error: "An account with this email or phone already exists" });
       }
 
+      // Auto-provision a virtual node so posting/credits work with zero setup
+      // for users who don't own physical mesh hardware.
+      const linkedNodeId = node_id || (await provisionVirtualNode(name)).id;
+
       const passwordHash = await bcrypt.hash(password, 10);
       const id = uuidv4();
       const { rows } = await pool.query(
         `INSERT INTO dashboard_users (id, name, phone, email, password_hash, role, node_id, town)
          VALUES ($1, $2, $3, $4, $5, 'user', $6, $7)
          RETURNING id, name, phone, email, role, node_id, town, created_at`,
-        [id, name, phone, email, passwordHash, node_id || null, town]
+        [id, name, phone, email, passwordHash, linkedNodeId, town]
       );
 
       const user = rows[0];
@@ -132,6 +139,16 @@ router.post(
       const ok = await bcrypt.compare(password, user.password_hash);
       if (!ok) {
         return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Safety net for accounts created before auto-provisioning existed
+      if (!user.node_id) {
+        const node = await provisionVirtualNode(user.name);
+        const updated = await pool.query(
+          `UPDATE dashboard_users SET node_id = $1 WHERE id = $2 RETURNING ${USER_COLUMNS}`,
+          [node.id, user.id]
+        );
+        Object.assign(user, updated.rows[0]);
       }
 
       const token = signToken(user);
