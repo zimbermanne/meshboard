@@ -85,12 +85,16 @@ async function migrate() {
         is_free_post    BOOLEAN NOT NULL DEFAULT FALSE,
         status          TEXT NOT NULL DEFAULT 'pending',
         rejection_reason TEXT,
+        town            TEXT,
         submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         approved_at     TIMESTAMPTZ,
         expires_at      TIMESTAMPTZ,
         approved_by     TEXT
       );
     `);
+    // Backfill column for pre-existing tables (CREATE IF NOT EXISTS above won't touch an existing table)
+    await client.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS town TEXT;`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_town_active ON posts (town) WHERE status = 'approved';`);
 
     // ── Free post tracking ─────────────────────────────────────────────────
     await client.query(`
@@ -128,6 +132,7 @@ async function migrate() {
         password_hash TEXT NOT NULL,
         role          TEXT NOT NULL DEFAULT 'user',
         node_id       TEXT REFERENCES nodes(id) ON DELETE SET NULL,
+        town          TEXT,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (email),
         UNIQUE (phone)
@@ -139,6 +144,9 @@ async function migrate() {
     `);
     await client.query(`
       ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(id) ON DELETE SET NULL;
+    `);
+    await client.query(`
+      ALTER TABLE dashboard_users ADD COLUMN IF NOT EXISTS town TEXT;
     `);
 
     // ── Sync queue ─────────────────────────────────────────────────────────

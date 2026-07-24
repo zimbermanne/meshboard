@@ -34,11 +34,12 @@ function publicUser(row) {
     email: row.email,
     role: row.role || "user",
     node_id: row.node_id || null,
+    town: row.town || null,
     created_at: row.created_at,
   };
 }
 
-const USER_COLUMNS = "id, name, phone, email, password_hash, role, node_id, created_at";
+const USER_COLUMNS = "id, name, phone, email, password_hash, role, node_id, town, created_at";
 
 // POST /api/auth/register — always creates a normal user account
 router.post(
@@ -54,12 +55,18 @@ router.post(
       .optional()
       .matches(/^NODE-[A-Z0-9]{4}-[A-Z0-9]{4}$/)
       .withMessage("Invalid node ID format"),
+    body("town")
+      .trim()
+      .notEmpty()
+      .withMessage("Town is required")
+      .isLength({ max: 60 })
+      .customSanitizer((v) => v.toLowerCase()),
   ],
   validate,
   async (req, res) => {
     if (!hasDatabaseConfig()) return dbUnavailable(res);
 
-    const { name, phone, email, password, node_id } = req.body;
+    const { name, phone, email, password, node_id, town } = req.body;
     try {
       if (node_id) {
         const nodeRes = await pool.query("SELECT id FROM nodes WHERE id = $1", [node_id]);
@@ -79,10 +86,10 @@ router.post(
       const passwordHash = await bcrypt.hash(password, 10);
       const id = uuidv4();
       const { rows } = await pool.query(
-        `INSERT INTO dashboard_users (id, name, phone, email, password_hash, role, node_id)
-         VALUES ($1, $2, $3, $4, $5, 'user', $6)
-         RETURNING id, name, phone, email, role, node_id, created_at`,
-        [id, name, phone, email, passwordHash, node_id || null]
+        `INSERT INTO dashboard_users (id, name, phone, email, password_hash, role, node_id, town)
+         VALUES ($1, $2, $3, $4, $5, 'user', $6, $7)
+         RETURNING id, name, phone, email, role, node_id, town, created_at`,
+        [id, name, phone, email, passwordHash, node_id || null, town]
       );
 
       const user = rows[0];
@@ -159,7 +166,7 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/auth/profile — link node ID (normal users)
+// PATCH /api/auth/profile — link node ID and/or set town (normal users)
 router.patch(
   "/profile",
   requireAuth,
@@ -173,14 +180,21 @@ router.patch(
         }
         return true;
       }),
+    body("town")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("Town cannot be blank")
+      .isLength({ max: 60 })
+      .customSanitizer((v) => v.toLowerCase()),
   ],
   validate,
   async (req, res) => {
     if (!hasDatabaseConfig()) return dbUnavailable(res);
 
-    const { node_id } = req.body;
-    if (node_id === undefined) {
-      return res.status(400).json({ error: "Provide node_id to link your mesh node" });
+    const { node_id, town } = req.body;
+    if (node_id === undefined && town === undefined) {
+      return res.status(400).json({ error: "Provide node_id and/or town to update" });
     }
 
     try {
@@ -191,10 +205,23 @@ router.patch(
         }
       }
 
+      // Build a dynamic SET clause so we only touch fields the caller actually sent
+      const sets = [];
+      const params = [];
+      if (node_id !== undefined) {
+        params.push(node_id);
+        sets.push(`node_id = $${params.length}`);
+      }
+      if (town !== undefined) {
+        params.push(town);
+        sets.push(`town = $${params.length}`);
+      }
+      params.push(req.user.sub);
+
       const { rows } = await pool.query(
-        `UPDATE dashboard_users SET node_id = $1 WHERE id = $2
-         RETURNING id, name, phone, email, role, node_id, created_at`,
-        [node_id, req.user.sub]
+        `UPDATE dashboard_users SET ${sets.join(", ")} WHERE id = $${params.length}
+         RETURNING id, name, phone, email, role, node_id, town, created_at`,
+        params
       );
       if (!rows.length) return res.status(404).json({ error: "User not found" });
 

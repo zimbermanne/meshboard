@@ -10,17 +10,40 @@ const validate = (req, res, next) => {
 };
 
 // GET /api/posts/active — must be registered before "/" (Express route order)
+// Town-scoped: defaults to the requesting user's own town so Arusha never
+// sees Moshi's feed by accident. Admins may pass ?town=all to see everything,
+// or ?town=<name> to inspect a specific town.
 router.get("/active", requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    let town = (req.query.town || "").trim().toLowerCase();
+
+    if (!town) {
+      const userRes = await pool.query(
+        "SELECT town FROM dashboard_users WHERE id = $1",
+        [req.user.sub]
+      );
+      town = userRes.rows[0]?.town || null;
+      if (!town) {
+        return res.status(400).json({
+          error: "Set your town in your profile to see local listings",
+          hint: "PATCH /api/auth/profile with your town",
+        });
+      }
+    }
+
+    const showAll = req.user.role === "admin" && town === "all";
+
+    const sql = `
       SELECT p.*, COALESCE(n.display_name, p.node_id) AS sender_name,
              EXTRACT(EPOCH FROM (p.expires_at - NOW())) AS seconds_remaining,
              EXTRACT(EPOCH FROM (p.expires_at - p.approved_at)) AS total_seconds
       FROM posts p
       LEFT JOIN nodes n ON n.id = p.node_id
       WHERE p.status = 'approved' AND p.expires_at > NOW()
+      ${showAll ? "" : "AND p.town = $1"}
       ORDER BY p.expires_at ASC
-    `);
+    `;
+    const { rows } = await pool.query(sql, showAll ? [] : [town]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -84,12 +107,21 @@ router.post(
   async (req, res) => {
     const { node_id, message_text, link, phone, package_days } = req.body;
 
+    const requesterRes = await pool.query(
+      "SELECT node_id, town FROM dashboard_users WHERE id = $1",
+      [req.user.sub]
+    );
+    const requester = requesterRes.rows[0];
+    const town = requester?.town || null;
+    if (!town) {
+      return res.status(400).json({
+        error: "Set your town before posting",
+        hint: "PATCH /api/auth/profile with your town",
+      });
+    }
+
     if (req.user.role !== "admin") {
-      const userRes = await pool.query(
-        "SELECT node_id FROM dashboard_users WHERE id = $1",
-        [req.user.sub]
-      );
-      const linkedNode = userRes.rows[0]?.node_id;
+      const linkedNode = requester?.node_id;
       if (!linkedNode) {
         return res.status(400).json({
           error: "Link your node ID in your profile before posting",
@@ -127,9 +159,9 @@ router.post(
 
       const postId = "MSG-" + Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6);
       const { rows } = await client.query(
-        `INSERT INTO posts(id, node_id, message_text, link, phone, package_days, credit_cost, is_free_post)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [postId, node_id, message_text, link || null, phone || null, package_days, credit_cost, isFreePost]
+        `INSERT INTO posts(id, node_id, message_text, link, phone, package_days, credit_cost, is_free_post, town)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [postId, node_id, message_text, link || null, phone || null, package_days, credit_cost, isFreePost, town]
       );
 
       await client.query("COMMIT");
