@@ -106,41 +106,46 @@ router.post(
   validate,
   async (req, res) => {
     const { node_id, message_text, link, phone, package_days } = req.body;
-
-    const requesterRes = await pool.query(
-      "SELECT node_id, town FROM dashboard_users WHERE id = $1",
-      [req.user.sub]
-    );
-    const requester = requesterRes.rows[0];
-    const town = requester?.town || null;
-    if (!town) {
-      return res.status(400).json({
-        error: "Set your town before posting",
-        hint: "PATCH /api/auth/profile with your town",
-      });
-    }
-
-    if (req.user.role !== "admin") {
-      const linkedNode = requester?.node_id;
-      if (!linkedNode) {
-        // Should be unreachable now that nodes are auto-provisioned at
-        // registration/login, but fail safely rather than 500 if it happens.
+    let client;
+    try {
+      const requesterRes = await pool.query(
+        "SELECT node_id, town FROM dashboard_users WHERE id = $1",
+        [req.user.sub]
+      );
+      const requester = requesterRes.rows[0];
+      const town = requester?.town || null;
+      if (!town) {
         return res.status(400).json({
-          error: "Your account isn't linked to a node yet — please log out and back in",
+          error: "Set your town before posting",
+          hint: "PATCH /api/auth/profile with your town",
         });
       }
-      if (linkedNode !== node_id) {
-        return res.status(403).json({ error: "You can only post from your linked node" });
+
+      if (req.user.role !== "admin") {
+        const linkedNode = requester?.node_id;
+        if (!linkedNode) {
+          // Should be unreachable now that nodes are auto-provisioned at
+          // registration/login, but fail safely rather than hang if it happens.
+          return res.status(400).json({
+            error: "Your account isn't linked to a node yet — please log out and back in",
+          });
+        }
+        if (linkedNode !== node_id) {
+          return res.status(403).json({ error: "You can only post from your linked node" });
+        }
       }
-    }
-    const client = await pool.connect();
-    try {
+
+      client = await pool.connect();
       await client.query("BEGIN");
 
       // Check node exists
       const nodeRes = await client.query("SELECT * FROM nodes WHERE id=$1", [node_id]);
-      if (!nodeRes.rows.length) return res.status(404).json({ error: "Node not registered" });
+      if (!nodeRes.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Node not registered" });
+      }
       if (nodeRes.rows[0].is_active === false) {
+        await client.query("ROLLBACK");
         return res.status(403).json({ error: "Node is deactivated" });
       }
       const node = nodeRes.rows[0];
@@ -168,10 +173,13 @@ router.post(
       await client.query("COMMIT");
       res.status(201).json(rows[0]);
     } catch (err) {
-      await client.query("ROLLBACK");
-      res.status(500).json({ error: err.message });
+      if (client) {
+        try { await client.query("ROLLBACK"); } catch { /* connection may already be dead */ }
+      }
+      console.error("[posts:create]", err.message);
+      res.status(500).json({ error: err.message || "Failed to submit post" });
     } finally {
-      client.release();
+      if (client) client.release();
     }
   }
 );

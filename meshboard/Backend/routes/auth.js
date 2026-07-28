@@ -2,32 +2,10 @@ const router = require("express").Router();
 const bcrypt = require("bcrypt");
 const { v4: uuidv4 } = require("uuid");
 const { body, validationResult } = require("express-validator");
-const rateLimit = require("express-rate-limit");
 const pool = require("../db/pool");
 const { hasDatabaseConfig, getDatabaseDiagnostics } = require("../db/resolveDatabaseConfig");
 const { signToken, requireAuth } = require("../middleware/auth");
 const { provisionVirtualNode } = require("../utils/nodeProvision");
-
-// 10 attempts per 15 minutes per IP — generous enough for a real user who
-// mistypes a password a few times, tight enough to blunt credential
-// stuffing / brute force against a known email or phone.
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many login attempts. Please wait a few minutes and try again." },
-});
-
-// Looser limit for registration — mainly to blunt scripted mass account
-// creation, not normal signup traffic.
-const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many accounts created from this network. Please try again later." },
-});
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -67,7 +45,6 @@ const USER_COLUMNS = "id, name, phone, email, password_hash, role, node_id, town
 // POST /api/auth/register — always creates a normal user account
 router.post(
   "/register",
-  registerLimiter,
   [
     body("name").trim().notEmpty().withMessage("Name is required").isLength({ max: 120 }),
     body("phone").trim().notEmpty().withMessage("Phone number is required").isLength({ max: 30 }),
@@ -140,7 +117,6 @@ router.post(
 // POST /api/auth/login
 router.post(
   "/login",
-  loginLimiter,
   [
     body("email").trim().isEmail().withMessage("Valid email is required").normalizeEmail(),
     body("password").notEmpty().withMessage("Password is required"),
