@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+Backend/.env
+
+# Local Railway reference with real credentials
+.env.railway
+
+# Build output
+Frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# CI pid files
+backend.pid
+frontend.pid

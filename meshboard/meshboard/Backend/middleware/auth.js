@@ -1,25 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const INSECURE_DEV_SECRET = "meshboard-dev-secret-change-in-production";
-
-if (!process.env.JWT_SECRET) {
-  if (process.env.NODE_ENV === "production") {
-    // Refuse to boot with a guessable secret in production — a missing
-    // JWT_SECRET here previously meant every token (including admin ones)
-    // was signed with a public, hardcoded string.
-    throw new Error(
-      "JWT_SECRET is not set. Refusing to start in production with an insecure default. " +
-      "Set JWT_SECRET in your environment (e.g. Railway variables) and redeploy."
-    );
-  }
-  console.warn(
-    "[auth] WARNING: JWT_SECRET is not set. Using an insecure development-only " +
-    "default — tokens will not be valid across restarts and this must never " +
-    "be used in production."
-  );
-}
-
-const JWT_SECRET = process.env.JWT_SECRET || INSECURE_DEV_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || "meshboard-dev-secret-change-in-production";
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "7d";
 
 function signToken(user) {
